@@ -22,6 +22,11 @@
 #include "allocators.h"
 #include "version.h"
 
+#ifdef _MSC_VER
+#undef max
+#undef min
+#endif
+
 typedef long long  int64;
 typedef unsigned long long  uint64;
 
@@ -64,6 +69,7 @@ enum
         assert(fGetSize||fWrite||fRead); /* suppress warning */ \
         s.nType = nType;                        \
         s.nVersion = nVersion;                  \
+        std::map<int, int> mapUnkIds;           \
         {statements}                            \
         return nSerSize;                        \
     }                                           \
@@ -76,6 +82,7 @@ enum
         const bool fRead = false;               \
         unsigned int nSerSize = 0;              \
         assert(fGetSize||fWrite||fRead); /* suppress warning */ \
+        std::map<int, int> mapUnkIds;           \
         {statements}                            \
     }                                           \
     template<typename Stream>                   \
@@ -87,6 +94,7 @@ enum
         const bool fRead = true;                \
         unsigned int nSerSize = 0;              \
         assert(fGetSize||fWrite||fRead); /* suppress warning */ \
+        std::map<int, int> mapUnkIds;           \
         {statements}                            \
     }
 
@@ -908,18 +916,6 @@ public:
             vch.insert(it, first, last);
     }
 
-    void insert(iterator it, std::vector<char>::const_iterator first, std::vector<char>::const_iterator last)
-    {
-        assert(last - first >= 0);
-        if (it == vch.begin() + nReadPos && (unsigned int)(last - first) <= nReadPos)
-        {
-            // special case for inserting at the front when there's room
-            nReadPos -= (last - first);
-            memcpy(&vch[nReadPos], &first[0], last - first);
-        }
-        else
-            vch.insert(it, first, last);
-    }
 
 #if !defined(_MSC_VER) || _MSC_VER >= 1300
     void insert(iterator it, const char* first, const char* last)

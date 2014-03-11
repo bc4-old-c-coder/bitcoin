@@ -73,7 +73,6 @@ extern CScript COINBASE_FLAGS;
 
 extern CCriticalSection cs_main;
 extern std::map<uint256, CBlockIndex*> mapBlockIndex;
-extern std::set<CBlockIndex*, CBlockIndexWorkComparator> setBlockIndexValid;
 extern uint256 hashGenesisBlock;
 extern CBlockIndex* pindexGenesisBlock;
 extern int nBestHeight;
@@ -692,7 +691,7 @@ public:
 
     CTxOutCompressor(CTxOut &txoutIn) : txout(txoutIn) { }
 
-    IMPLEMENT_SERIALIZE(({
+    IMPLEMENT_SERIALIZE({
         if (!fRead) {
             uint64 nVal = CompressAmount(txout.nValue);
             READWRITE(VARINT(nVal));
@@ -703,7 +702,7 @@ public:
         }
         CScriptCompressor cscript(REF(txout.scriptPubKey));
         READWRITE(cscript);
-    });)
+    };)
 };
 
 /** Undo information for a CTxIn
@@ -817,7 +816,7 @@ public:
             filein >> hashChecksum;
         }
         catch (std::exception &e) {
-            return error("%s() : deserialize or I/O error", __PRETTY_FUNCTION__);
+            return error("%s() : deserialize or I/O error", BOOST_CURRENT_FUNCTION);
         }
 
         // Verify checksum
@@ -1461,7 +1460,7 @@ public:
             filein >> *this;
         }
         catch (std::exception &e) {
-            return error("%s() : deserialize or I/O error", __PRETTY_FUNCTION__);
+            return error("%s() : deserialize or I/O error", BOOST_CURRENT_FUNCTION);
         }
 
         // Check the header
