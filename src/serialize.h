@@ -22,13 +22,13 @@
 #include "allocators.h"
 #include "version.h"
 
+typedef long long  int64;
+typedef unsigned long long  uint64;
+
 #ifdef _MSC_VER
 #undef max
 #undef min
 #endif
-
-typedef long long  int64;
-typedef unsigned long long  uint64;
 
 class CScript;
 class CDataStream;
@@ -69,7 +69,7 @@ enum
         assert(fGetSize||fWrite||fRead); /* suppress warning */ \
         s.nType = nType;                        \
         s.nVersion = nVersion;                  \
-        std::map<int, int> mapUnkIds;           \
+        std::map<int, int>  mapUnkIds;          \
         {statements}                            \
         return nSerSize;                        \
     }                                           \
@@ -82,7 +82,7 @@ enum
         const bool fRead = false;               \
         unsigned int nSerSize = 0;              \
         assert(fGetSize||fWrite||fRead); /* suppress warning */ \
-        std::map<int, int> mapUnkIds;           \
+        std::map<int, int>  mapUnkIds;          \
         {statements}                            \
     }                                           \
     template<typename Stream>                   \
@@ -94,7 +94,7 @@ enum
         const bool fRead = true;                \
         unsigned int nSerSize = 0;              \
         assert(fGetSize||fWrite||fRead); /* suppress warning */ \
-        std::map<int, int> mapUnkIds;           \
+        std::map<int, int>  mapUnkIds;          \
         {statements}                            \
     }
 
@@ -853,7 +853,7 @@ public:
         Init(nTypeIn, nVersionIn);
     }
 
-    CDataStream(const std::vector<unsigned char>& vchIn, int nTypeIn, int nVersionIn) : vch((char*)&vchIn.begin()[0], (char*)&vchIn.end()[0])
+    CDataStream(const std::vector<unsigned char>& vchIn, int nTypeIn, int nVersionIn) : vch(vchIn.begin(), vchIn.end())
     {
         Init(nTypeIn, nVersionIn);
     }
@@ -903,7 +903,7 @@ public:
     iterator insert(iterator it, const char& x=char()) { return vch.insert(it, x); }
     void insert(iterator it, size_type n, const char& x) { vch.insert(it, n, x); }
 
-    void insert(iterator it, const_iterator first, const_iterator last)
+    void insert(iterator it, std::vector<char>::const_iterator first, std::vector<char>::const_iterator last)
     {
         assert(last - first >= 0);
         if (it == vch.begin() + nReadPos && (unsigned int)(last - first) <= nReadPos)
@@ -915,7 +915,6 @@ public:
         else
             vch.insert(it, first, last);
     }
-
 
 #if !defined(_MSC_VER) || _MSC_VER >= 1300
     void insert(iterator it, const char* first, const char* last)
