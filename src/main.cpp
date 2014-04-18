@@ -3,6 +3,18 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#ifdef _MSC_VER
+    #include "msvc_warnings.push.h"
+
+    #include "alert.h"
+    #include "checkpoints.h"
+    #include "db.h"
+    #include "txdb.h"
+    #include "net.h"
+    #include "init.h"
+    #include "ui_interface.h"
+    #include "checkqueue.h"    
+#else
 #include "alert.h"
 #include "checkpoints.h"
 #include "db.h"
@@ -11,6 +23,8 @@
 #include "init.h"
 #include "ui_interface.h"
 #include "checkqueue.h"
+#endif
+
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
@@ -214,7 +228,18 @@ std::map<uint256,CCoins>::iterator CCoinsViewCache::FetchCoins(const uint256 &tx
 
 CCoins &CCoinsViewCache::GetCoins(const uint256 &txid) {
     std::map<uint256,CCoins>::iterator it = FetchCoins(txid);
+#ifdef _MSC_VER
+    bool
+        fTest = (it != cacheCoins.end());
+    #ifdef _DEBUG
+    assert(fTest);              // can it be false, ever, at runtime, in release mode??
+    #else
+    if( !fTest )
+        releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
     assert(it != cacheCoins.end());
+#endif
     return it->second;
 }
 
@@ -988,11 +1013,11 @@ bool GetTransaction(const uint256 &hash, CTransaction &txOut, uint256 &hashBlock
                     fseek(file, postx.nTxOffset, SEEK_CUR);
                     file >> txOut;
                 } catch (std::exception &e) {
-                    return error("%s() : deserialize or I/O error", BOOST_CURRENT_FUNCTION);
+                    return error("%s() : deserialize or I/O error", __PRETTY_FUNCTION__);
                 }
                 hashBlock = header.GetHash();
                 if (txOut.GetHash() != hash)
-                    return error("%s() : txid mismatch", BOOST_CURRENT_FUNCTION);
+                    return error("%s() : txid mismatch", __PRETTY_FUNCTION__);
                 return true;
             }
         }
@@ -1145,7 +1170,18 @@ unsigned int static GetNextWorkRequired(const CBlockIndex* pindexLast, const CBl
     const CBlockIndex* pindexFirst = pindexLast;
     for (int i = 0; pindexFirst && i < nInterval-1; i++)
         pindexFirst = pindexFirst->pprev;
+#ifdef _MSC_VER
+    bool
+        fTest = (NULL != pindexFirst);
+    #ifdef _DEBUG
+    assert(fTest);              // can it be false, ever, at runtime, in release mode??
+    #else
+    if( !fTest )
+        releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__);
+    #endif
+#else
     assert(pindexFirst);
+#endif
 
     // Limit adjustment step
     int64 nActualTimespan = pindexLast->GetBlockTime() - pindexFirst->GetBlockTime();
@@ -1263,7 +1299,6 @@ bool ConnectBestBlock(CValidationState &state) {
                 CBlockIndex *pindexFailed = pindexNewBest;
                 while (pindexTest != pindexFailed) {
                     pindexFailed->nStatus |= BLOCK_FAILED_CHILD;
-                    setBlockIndexValid.erase(pindexFailed);
                     pblocktree->WriteBlockIndex(CDiskBlockIndex(pindexFailed));
                     pindexFailed = pindexFailed->pprev;
                 }
@@ -1314,7 +1349,18 @@ void CBlockHeader::UpdateTime(const CBlockIndex* pindexPrev)
 const CTxOut &CTransaction::GetOutputFor(const CTxIn& input, CCoinsViewCache& view)
 {
     const CCoins &coins = view.GetCoins(input.prevout.hash);
+#ifdef _MSC_VER
+    bool
+        fTest = coins.IsAvailable(input.prevout.n);
+    #ifdef _DEBUG
+    assert(fTest);              // can it be false, ever, at runtime, in release mode??
+    #else
+    if( !fTest )
+        releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
     assert(coins.IsAvailable(input.prevout.n));
+#endif
     return coins.vout[input.prevout.n];
 }
 
@@ -1352,13 +1398,35 @@ void CTransaction::UpdateCoins(CValidationState &state, CCoinsViewCache &inputs,
         BOOST_FOREACH(const CTxIn &txin, vin) {
             CCoins &coins = inputs.GetCoins(txin.prevout.hash);
             CTxInUndo undo;
+#ifdef _MSC_VER
+            bool
+                fTest = coins.Spend(txin.prevout, undo);
+    #ifdef _DEBUG
+            assert(fTest);
+    #else
+            if( !fTest )
+                releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
             assert(coins.Spend(txin.prevout, undo));
+#endif
             txundo.vprevout.push_back(undo);
         }
     }
 
-    // add outputs
+    // add outputs      sure looks like an assert with side effects here!?
+#ifdef _MSC_VER
+    bool
+        fTest = inputs.SetCoins(txhash, CCoins(*this, nHeight));
+    #ifdef _DEBUG
+    assert(fTest);
+    #else
+    if( !fTest )
+        releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
     assert(inputs.SetCoins(txhash, CCoins(*this, nHeight)));
+#endif
 }
 
 bool CTransaction::HaveInputs(CCoinsViewCache &inputs) const
@@ -1479,7 +1547,18 @@ bool CTransaction::CheckInputs(CValidationState &state, CCoinsViewCache &inputs,
 
 bool CBlock::DisconnectBlock(CValidationState &state, CBlockIndex *pindex, CCoinsViewCache &view, bool *pfClean)
 {
+#ifdef _MSC_VER
+    bool
+        fTest = (pindex == view.GetBestBlock());
+    #ifdef _DEBUG
+    assert(fTest);
+    #else
+    if( !fTest )
+        releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
     assert(pindex == view.GetBestBlock());
+#endif
 
     if (pfClean)
         *pfClean = false;
@@ -1497,12 +1576,14 @@ bool CBlock::DisconnectBlock(CValidationState &state, CBlockIndex *pindex, CCoin
         return error("DisconnectBlock() : block and undo data inconsistent");
 
     // undo transactions in reverse order
-    for (int i = vtx.size() - 1; i >= 0; i--) {
+    for (int i = vtx.size() - 1; i >= 0; i--) 
+    {
         const CTransaction &tx = vtx[i];
         uint256 hash = tx.GetHash();
 
         // check that all outputs are available
-        if (!view.HaveCoins(hash)) {
+        if (!view.HaveCoins(hash)) 
+        {
             fClean = fClean && error("DisconnectBlock() : outputs still spent? database corrupted");
             view.SetCoins(hash, CCoins());
         }
@@ -1521,16 +1602,30 @@ bool CBlock::DisconnectBlock(CValidationState &state, CBlockIndex *pindex, CCoin
         outs = CCoins();
 
         // restore inputs
-        if (i > 0) { // not coinbases
+        if (i > 0) 
+        { // not coinbases
             const CTxUndo &txundo = blockUndo.vtxundo[i-1];
             if (txundo.vprevout.size() != tx.vin.size())
                 return error("DisconnectBlock() : transaction and undo data inconsistent");
-            for (unsigned int j = tx.vin.size(); j-- > 0;) {
+            for (unsigned int j = tx.vin.size(); j-- > 0;) 
+            {
+#ifdef _MSC_VER
+                if( fPrintToConsole )
+                {
+                    (void)printf(
+                                ""
+                                ", j=%4d"
+                                ""
+                                , j
+                                );
+                }
+#endif
                 const COutPoint &out = tx.vin[j].prevout;
                 const CTxInUndo &undo = txundo.vprevout[j];
                 CCoins coins;
                 view.GetCoins(out.hash, coins); // this can fail if the prevout was already entirely spent
-                if (undo.nHeight != 0) {
+                if (undo.nHeight != 0) 
+                {
                     // undo data contains height: this is the last output of the prevout tx being spent
                     if (!coins.IsPruned())
                         fClean = fClean && error("DisconnectBlock() : undo data overwriting existing transaction");
@@ -1538,7 +1633,8 @@ bool CBlock::DisconnectBlock(CValidationState &state, CBlockIndex *pindex, CCoin
                     coins.fCoinBase = undo.fCoinBase;
                     coins.nHeight = undo.nHeight;
                     coins.nVersion = undo.nVersion;
-                } else {
+                } else 
+                {
                     if (coins.IsPruned())
                         fClean = fClean && error("DisconnectBlock() : undo data adding output to missing transaction");
                 }
@@ -1549,17 +1645,37 @@ bool CBlock::DisconnectBlock(CValidationState &state, CBlockIndex *pindex, CCoin
                 coins.vout[out.n] = undo.txout;
                 if (!view.SetCoins(out.hash, coins))
                     return error("DisconnectBlock() : cannot restore coin inputs");
+#ifdef _MSC_VER
+                if( fPrintToConsole )
+                {
+                    (void)printf(
+                                "\b\b\b\b"
+                                "\b\b\b\b"
+                                );
+                }
+#endif
             }
         }
+#ifdef _MSC_VER
+        if( fPrintToConsole )
+        {
+            (void)printf(
+                        "\b\b"
+                        "\b\b\b\b"
+                        );
+        }
+#endif
     }
 
     // move best block pointer to prevout block
     view.SetBestBlock(pindex->pprev);
 
-    if (pfClean) {
+    if (pfClean) 
+    {
         *pfClean = fClean;
         return true;
-    } else {
+    } else 
+    {
         return fClean;
     }
 }
@@ -1603,7 +1719,18 @@ bool CBlock::ConnectBlock(CValidationState &state, CBlockIndex* pindex, CCoinsVi
         return false;
 
     // verify that the view's current state corresponds to the previous block
+#ifdef _MSC_VER
+    bool
+        fTest = (pindex->pprev == view.GetBestBlock());
+    #ifdef _DEBUG
+    assert(fTest);
+    #else
+    if( !fTest )
+        releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
     assert(pindex->pprev == view.GetBestBlock());
+#endif
 
     // Special case for the genesis block, skipping connection of its transactions
     // (its coinbase is unspendable)
@@ -1738,8 +1865,18 @@ bool CBlock::ConnectBlock(CValidationState &state, CBlockIndex* pindex, CCoinsVi
         if (!pblocktree->WriteTxIndex(vPos))
             return state.Abort(_("Failed to write transaction index"));
 
-    // add this block to the view's block chain
+    // add this block to the view's block chain, sure looks like an assert with side effects to me!?
+#ifdef _MSC_VER
+    fTest = view.SetBestBlock(pindex);
+    #ifdef _DEBUG
+    assert(fTest);
+    #else
+    if( !fTest )
+        releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
     assert(view.SetBestBlock(pindex));
+#endif
 
     // Watch for transactions paying to me
     for (unsigned int i=0; i<vtx.size(); i++)
@@ -1759,14 +1896,37 @@ bool SetBestChain(CValidationState &state, CBlockIndex* pindexNew)
     CBlockIndex* plonger = pindexNew;
     while (pfork && pfork != plonger)
     {
-        while (plonger->nHeight > pfork->nHeight) {
+        while (plonger->nHeight > pfork->nHeight) 
+        {
             plonger = plonger->pprev;
+        #ifdef _MSC_VER
+            bool
+                fTest = (NULL != plonger);
+    #ifdef _DEBUG
+            assert(fTest);
+    #else
+            if( !fTest )
+                releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
             assert(plonger != NULL);
+#endif
         }
         if (pfork == plonger)
             break;
         pfork = pfork->pprev;
+#ifdef _MSC_VER
+        bool
+            fTest = (NULL != pfork);
+    #ifdef _DEBUG
+        assert(fTest);
+    #else
+        if( !fTest )
+            releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
         assert(pfork != NULL);
+#endif
     }
 
     // List of what to disconnect (typically nothing)
@@ -1830,7 +1990,18 @@ bool SetBestChain(CValidationState &state, CBlockIndex* pindexNew)
     // Flush changes to global coin state
     int64 nStart = GetTimeMicros();
     int nModified = view.GetCacheSize();
+#ifdef _MSC_VER
+    bool
+        fTest = view.Flush();
+    #ifdef _DEBUG
+    assert(fTest);
+    #else
+    if( !fTest )
+        releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
     assert(view.Flush());
+#endif
     int64 nTime = GetTimeMicros() - nStart;
     if (fBenchmark)
         printf("- Flush %i transactions: %.2fms (%.4fms/tx)\n", nModified, 0.001 * nTime, 0.001 * nTime / nModified);
@@ -1873,8 +2044,9 @@ bool SetBestChain(CValidationState &state, CBlockIndex* pindexNew)
     }
 
     // Delete redundant memory transactions that are in the connected branch
-    BOOST_FOREACH(CTransaction& tx, vDelete) {
-        mempool.remove(tx);
+    BOOST_FOREACH(CTransaction& tx, vDelete) 
+    {
+        mempool.remove(tx);      // Do we relly want not recursive here?
         mempool.removeConflicts(tx);
     }
 
@@ -1937,7 +2109,18 @@ bool CBlock::AddToBlockIndex(CValidationState &state, const CDiskBlockPos &pos)
 
     // Construct new block index object
     CBlockIndex* pindexNew = new CBlockIndex(*this);
+#ifdef _MSC_VER
+    bool
+        fTest = (NULL != pindexNew);
+    #ifdef _DEBUG
+    assert(fTest);
+    #else
+    if( !fTest )
+        releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
     assert(pindexNew);
+#endif
     map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.insert(make_pair(hash, pindexNew)).first;
     pindexNew->phashBlock = &((*mi).first);
     map<uint256, CBlockIndex*>::iterator miPrev = mapBlockIndex.find(hashPrevBlock);
@@ -2150,10 +2333,22 @@ bool CBlock::CheckBlock(CValidationState &state, bool fCheckPOW, bool fCheckMerk
     return true;
 }
 
+#ifdef _MSC_VER
+bool CBlock::AcceptBlock(CValidationState &state, uint256 hash, CDiskBlockPos *dbp)
+#else
 bool CBlock::AcceptBlock(CValidationState &state, CDiskBlockPos *dbp)
+#endif
 {
+#ifdef _MSC_VER
+    #ifdef _DEBUG
+                                    // let's test this
+    assert( hash == GetHash() );    // seems always true?
+    #endif
+#else
     // Check for duplicate
-    uint256 hash = GetHash();
+    uint256 
+        hash = GetHash();
+#endif
     if (mapBlockIndex.count(hash))
         return state.Invalid(error("AcceptBlock() : block already in mapBlockIndex"));
 
@@ -2301,7 +2496,11 @@ bool ProcessBlock(CValidationState &state, CNode* pfrom, CBlock* pblock, CDiskBl
     }
 
     // Store to disk
-    if (!pblock->AcceptBlock(state, dbp))
+#ifdef _MSC_VER
+    if (!pblock->AcceptBlock(state, hash, dbp))           // process => accept
+#else
+    if (!pblock->AcceptBlock(state, dbp))           // process => accept
+#endif
         return error("ProcessBlock() : AcceptBlock FAILED");
 
     // Recursively process any orphan blocks that depended on this one
@@ -2317,7 +2516,14 @@ bool ProcessBlock(CValidationState &state, CNode* pfrom, CBlock* pblock, CDiskBl
             CBlock* pblockOrphan = (*mi).second;
             // Use a dummy CValidationState so someone can't setup nodes to counter-DoS based on orphan resolution (that is, feeding people an invalid block based on LegitBlockX in order to get anyone relaying LegitBlockX banned)
             CValidationState stateDummy;
+#ifdef _MSC_VER
+            uint256 
+                hashOrphan = pblockOrphan->GetHash();
+
+            if (pblockOrphan->AcceptBlock(stateDummy, hashOrphan))
+#else
             if (pblockOrphan->AcceptBlock(stateDummy))
+#endif
                 vWorkQueue.push_back(pblockOrphan->GetHash());
             mapOrphanBlocks.erase(pblockOrphan->GetHash());
             delete pblockOrphan;
@@ -2570,6 +2776,12 @@ bool static LoadBlockIndexDB()
 
     boost::this_thread::interruption_point();
 
+#ifdef _MSC_VER
+    if( fPrintToConsole )
+        (void)printf(
+                 "sorting by block height..."
+                    );
+#endif    
     // Calculate nChainWork
     vector<pair<int, CBlockIndex*> > vSortedByHeight;
     vSortedByHeight.reserve(mapBlockIndex.size());
@@ -2578,7 +2790,26 @@ bool static LoadBlockIndexDB()
         CBlockIndex* pindex = item.second;
         vSortedByHeight.push_back(make_pair(pindex->nHeight, pindex));
     }
+#ifdef _MSC_VER
+    if( fPrintToConsole )
+        (void)printf(
+                 "loaded..."
+                    );
+#endif    
     sort(vSortedByHeight.begin(), vSortedByHeight.end());
+#ifdef _MSC_VER
+    int
+        nCount = 0;
+
+    if( fPrintToConsole )
+        (void)printf(
+                 "done"
+                 "\n"
+                 "building setBlockIndexValid ..."
+                 "\n"
+                    );
+#endif    
+
     BOOST_FOREACH(const PAIRTYPE(int, CBlockIndex*)& item, vSortedByHeight)
     {
         CBlockIndex* pindex = item.second;
@@ -2586,7 +2817,35 @@ bool static LoadBlockIndexDB()
         pindex->nChainTx = (pindex->pprev ? pindex->pprev->nChainTx : 0) + pindex->nTx;
         if ((pindex->nStatus & BLOCK_VALID_MASK) >= BLOCK_VALID_TRANSACTIONS && !(pindex->nStatus & BLOCK_FAILED_MASK))
             setBlockIndexValid.insert(pindex);
+#ifdef _MSC_VER
+        const int
+            nEveryTenThousandth = 10000;
+        ++nCount;
+        if(
+            fPrintToConsole
+            &&
+            (nCount &&
+             (0 == (nCount % nEveryTenThousandth))
+            )
+          )
+        {
+        if( fPrintToConsole )
+            (void)printf(
+                     "%7d"
+                     "\r"
+                     ""
+                     , nCount
+                        );
+        }
+#endif
+
     }
+#ifdef _MSC_VER
+    if( fPrintToConsole )
+        (void)printf(
+                 "done   \n"
+                    );
+#endif        
 
     // Load block file info
     pblocktree->ReadLastBlockFile(nLastBlockFile);
@@ -2630,36 +2889,82 @@ bool static LoadBlockIndexDB()
     return true;
 }
 
-bool VerifyDB() {
+bool VerifyDB() 
+{
     if (pindexBest == NULL || pindexBest->pprev == NULL)
         return true;
-
+#ifdef _MSC_VER
+    const int
+        nBlocksPerHour = 6,
+        nHoursPerDay = 24,
+        nDaysToCheck = 2;   // the only variable here
+#endif
     // Verify blocks in the best chain
     int nCheckLevel = GetArg("-checklevel", 3);
-    int nCheckDepth = GetArg( "-checkblocks", 288);
+    int nCheckDepth = GetArg( "-checkblocks", 
+#ifdef _MSC_VER
+                              nBlocksPerHour*nHoursPerDay*nDaysToCheck
+#else
+                              288
+#endif
+                            );
     if (nCheckDepth == 0)
         nCheckDepth = 1000000000; // suffices until the year 19000
     if (nCheckDepth > nBestHeight)
         nCheckDepth = nBestHeight;
+#ifdef _MSC_VER
+    #ifdef _DEBUG
+    nCheckDepth = 100;  // for speed
+    #endif
+#endif
     nCheckLevel = std::max(0, std::min(4, nCheckLevel));
     printf("Verifying last %i blocks at level %i\n", nCheckDepth, nCheckLevel);
     CCoinsViewCache coins(*pcoinsTip, true);
     CBlockIndex* pindexState = pindexBest;
     CBlockIndex* pindexFailure = NULL;
     int nGoodTransactions = 0;
+#ifdef _MSC_VER
+    int 
+        nCount = 0;
+
+    if( fPrintToConsole )
+        (void)printf( 
+                 "Verifying %d  "
+                 "", 
+                 (nCheckDepth - nCount)
+                    );
+#endif
     CValidationState state;
     for (CBlockIndex* pindex = pindexBest; pindex && pindex->pprev; pindex = pindex->pprev)
     {
         boost::this_thread::interruption_point();
+#if !defined(QT_GUI)
+    #ifdef _MSC_VER
+        if( fPrintToConsole )
+            (void)printf( "0" );
+    #endif
+#endif
         if (pindex->nHeight < nBestHeight-nCheckDepth)
             break;
         CBlock block;
         // check level 0: read from disk
         if (!block.ReadFromDisk(pindex))
             return error("VerifyDB() : *** block.ReadFromDisk failed at %d, hash=%s", pindex->nHeight, pindex->GetBlockHash().ToString().c_str());
+#if !defined(QT_GUI)
+    #ifdef _MSC_VER
+        if( fPrintToConsole )
+            (void)printf( ", 1" );
+    #endif            
+#endif        
         // check level 1: verify block validity
         if (nCheckLevel >= 1 && !block.CheckBlock(state))
             return error("VerifyDB() : *** found bad block at %d, hash=%s\n", pindex->nHeight, pindex->GetBlockHash().ToString().c_str());
+#if !defined(QT_GUI)
+    #ifdef _MSC_VER
+        if( fPrintToConsole )
+            (void)printf( ", 2" );
+    #endif            
+#endif           
         // check level 2: verify undo validity
         if (nCheckLevel >= 2 && pindex) {
             CBlockUndo undo;
@@ -2669,8 +2974,15 @@ bool VerifyDB() {
                     return error("VerifyDB() : *** found bad undo data at %d, hash=%s\n", pindex->nHeight, pindex->GetBlockHash().ToString().c_str());
             }
         }
+#if !defined(QT_GUI)
+    #ifdef _MSC_VER
+        if( fPrintToConsole )
+            (void)printf( ", 3 " );
+    #endif            
+#endif  
         // check level 3: check for inconsistencies during memory-only disconnect of tip blocks
-        if (nCheckLevel >= 3 && pindex == pindexState && (coins.GetCacheSize() + pcoinsTip->GetCacheSize()) <= 2*nCoinCacheSize + 32000) {
+        if (nCheckLevel >= 3 && pindex == pindexState && (coins.GetCacheSize() + pcoinsTip->GetCacheSize()) <= 2*nCoinCacheSize + 32000) 
+        {
             bool fClean = true;
             if (!block.DisconnectBlock(state, pindex, coins, &fClean))
                 return error("VerifyDB() : *** irrecoverable inconsistency in block data at %d, hash=%s", pindex->nHeight, pindex->GetBlockHash().ToString().c_str());
@@ -2681,14 +2993,60 @@ bool VerifyDB() {
             } else
                 nGoodTransactions += block.vtx.size();
         }
+#ifdef _MSC_VER
+        ++nCount;
+    #if defined(QT_GUI)
+        // splash should indicate life somehow, perhaps something like
+        switch( nCount % 4 )
+            {
+            case 0:
+                uiInterface.InitMessage(_("Verifying blocks  |"));
+                break;
+            case 1:
+                uiInterface.InitMessage(_("Verifying blocks  /"));
+                break;
+            case 2:
+              //uiInterface.InitMessage(_("Verifying  -"));
+                uiInterface.InitMessage(_("Verifying blocks  \u2014"));
+                break;
+            case 3:
+                uiInterface.InitMessage(_("Verifying blocks  \\"));
+                break;
+            }
+    #else
+        if( fPrintToConsole )
+        {
+            (void)printf( 
+                        "\r"
+                        "                                                                               "
+                        "\r"
+                        "Verifying %d  "
+                        "", 
+                        (nCheckDepth - nCount)   /*  / 10 */
+                        );
+        }
+    #endif                    
+#endif
     }
+#if !defined(QT_GUI)
+    #ifdef _MSC_VER
+    if( fPrintToConsole )
+        (void)printf( 
+                    "\r"
+                    "                                                                               "
+                    "\r" 
+                    );    
+    #endif            
+#endif                
     if (pindexFailure)
         return error("VerifyDB() : *** coin database inconsistencies found (last %i blocks, %i good transactions before that)\n", pindexBest->nHeight - pindexFailure->nHeight + 1, nGoodTransactions);
 
     // check level 4: try reconnecting blocks
-    if (nCheckLevel >= 4) {
+    if (nCheckLevel >= 4) 
+    {
         CBlockIndex *pindex = pindexState;
-        while (pindex != pindexBest) {
+        while (pindex != pindexBest) 
+        {
             boost::this_thread::interruption_point();
             pindex = pindex->pnext;
             CBlock block;
@@ -2696,6 +3054,27 @@ bool VerifyDB() {
                 return error("VerifyDB() : *** block.ReadFromDisk failed at %d, hash=%s", pindex->nHeight, pindex->GetBlockHash().ToString().c_str());
             if (!block.ConnectBlock(state, pindex, coins))
                 return error("VerifyDB() : *** found unconnectable block at %d, hash=%s", pindex->nHeight, pindex->GetBlockHash().ToString().c_str());
+#if defined(QT_GUI)
+    #ifdef _MSC_VER
+            // splash should indicate life somehow, perhaps something like
+            switch( nCount % 4 )
+                {
+                case 0:
+                    uiInterface.InitMessage(_("Verifying blocks  |"));
+                    break;
+                case 1:
+                    uiInterface.InitMessage(_("Verifying blocks  /"));
+                    break;
+                case 2:
+                  //uiInterface.InitMessage(_("Verifying  -"));
+                    uiInterface.InitMessage(_("Verifying blocks  \u2014"));
+                    break;
+                case 3:
+                    uiInterface.InitMessage(_("Verifying blocks  \\"));
+                    break;
+                }
+    #endif            
+#endif
         }
     }
 
@@ -2784,9 +3163,31 @@ bool InitBlockIndex() {
         printf("%s\n", hash.ToString().c_str());
         printf("%s\n", hashGenesisBlock.ToString().c_str());
         printf("%s\n", block.hashMerkleRoot.ToString().c_str());
+#ifdef _MSC_VER
+        bool
+            fTest = (
+                     uint256("0x4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b") ==
+                     block.hashMerkleRoot
+                    );
+    #ifdef _DEBUG
+        assert(fTest);
+    #else
+        if( !fTest )
+            releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+        block.print();
+        fTest = (hashGenesisBlock == hash);
+    #ifdef _DEBUG
+        assert(fTest);
+    #else
+        if( !fTest )
+            releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
         assert(block.hashMerkleRoot == uint256("0x4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"));
         block.print();
         assert(hash == hashGenesisBlock);
+#endif
 
         // Start new block file
         try {
@@ -2939,7 +3340,7 @@ bool LoadExternalBlockFile(FILE* fileIn, CDiskBlockPos *dbp)
                         break;
                 }
             } catch (std::exception &e) {
-                printf("%s() : Deserialize or I/O error caught during load\n", BOOST_CURRENT_FUNCTION);
+                printf("%s() : Deserialize or I/O error caught during load\n", __PRETTY_FUNCTION__);
             }
         }
         fclose(fileIn);
@@ -3012,7 +3413,21 @@ string GetWarnings(string strFor)
         return strStatusBar;
     else if (strFor == "rpc")
         return strRPC;
+#ifdef _MSC_VER
+    bool
+        fTest = (!"GetWarnings() : invalid parameter");
+    (void)printf( "GetWarnings() : invalid parameter"
+                  "\n"
+                );
+    #ifdef _DEBUG
+    assert(fTest);
+    #else
+    if( !fTest )
+        releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
     assert(!"GetWarnings() : invalid parameter");
+#endif
     return "error";
 }
 
@@ -4094,6 +4509,17 @@ void SHA256Transform(void* pstate, void* pinput, const void* pinit)
 
     SHA256_Init(&ctx);
 
+#ifdef _MSC_VER
+    for (int i = 0; i < 16; i++)
+        ((::uint32_t*)data)[i] = ByteReverse(((::uint32_t*)pinput)[i]);
+
+    for (int i = 0; i < 8; i++)
+        ctx.h[i] = ((::uint32_t*)pinit)[i];
+
+    SHA256_Update(&ctx, data, sizeof(data));
+    for (int i = 0; i < 8; i++)
+        ((::uint32_t*)pstate)[i] = ctx.h[i];
+#else
     for (int i = 0; i < 16; i++)
         ((uint32_t*)data)[i] = ByteReverse(((uint32_t*)pinput)[i]);
 
@@ -4103,6 +4529,7 @@ void SHA256Transform(void* pstate, void* pinput, const void* pinit)
     SHA256_Update(&ctx, data, sizeof(data));
     for (int i = 0; i < 8; i++)
         ((uint32_t*)pstate)[i] = ctx.h[i];
+#endif        
 }
 
 //
@@ -4270,7 +4697,21 @@ CBlockTemplate* CreateNewBlock(CReserveKey& reservekey)
                     if (!mempool.mapTx.count(txin.prevout.hash))
                     {
                         printf("ERROR: mempool transaction missing input\n");
-                        if (fDebug) assert("mempool transaction missing input" == 0);
+                        if (fDebug) 
+#ifdef _MSC_VER
+                        {
+                            bool
+                                fTest = ("mempool transaction missing input" == 0);
+    #ifdef _DEBUG
+                            assert( fTest );
+    #else
+                            if( !fTest )
+                                releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+                        }
+#else
+                            assert("mempool transaction missing input" == 0);
+#endif
                         fMissingInputs = true;
                         if (porphan)
                             vOrphan.pop_back();
@@ -4451,7 +4892,18 @@ void IncrementExtraNonce(CBlock* pblock, CBlockIndex* pindexPrev, unsigned int& 
     ++nExtraNonce;
     unsigned int nHeight = pindexPrev->nHeight+1; // Height first in coinbase required for block.version=2
     pblock->vtx[0].vin[0].scriptSig = (CScript() << nHeight << CBigNum(nExtraNonce)) + COINBASE_FLAGS;
+#ifdef _MSC_VER
+    bool
+        fTest = (pblock->vtx[0].vin[0].scriptSig.size() <= 100);    // 100 what?
+    #ifdef _DEBUG
+    assert(fTest);
+    #else
+    if( !fTest )
+        releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
     assert(pblock->vtx[0].vin[0].scriptSig.size() <= 100);
+#endif
 
     pblock->hashMerkleRoot = pblock->BuildMerkleTree();
 }
@@ -4610,7 +5062,33 @@ void static BitcoinMiner(CWallet *pwallet)
                 {
                     // Found a solution
                     pblock->nNonce = ByteReverse(nNonceFound);
+#ifdef _MSC_VER
+                    bool
+                        fTest = (hash == pblock->GetHash());
+                    
+                    if( !fTest )
+                    {
+                        (void)printf(
+                                    "hashes don't match?"
+                                    "\n"
+                                    "%s vs."
+                                    "\n"
+                                    "%s"
+                                    "\n"
+                                    ""
+                                    , hash.ToString().c_str()
+                                    , ( pblock->GetHash() ).ToString().c_str()
+                                    );
+                    }
+                    #ifdef _DEBUG
+                    assert(fTest);
+                    #else
+                    if( !fTest )
+                        releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+                    #endif
+#else
                     assert(hash == pblock->GetHash());
+#endif
 
                     SetThreadPriority(THREAD_PRIORITY_NORMAL);
                     CheckWork(pblock, *pwalletMain, reservekey);
@@ -4720,7 +5198,21 @@ uint64 CTxOutCompressor::CompressAmount(uint64 n)
     }
     if (e < 9) {
         int d = (n % 10);
+#ifdef _MSC_VER
+        bool
+            fTest = (
+                     (d >= 1) && 
+                     (d <= 9)
+                    );
+    #ifdef _DEBUG
+        assert(fTest);
+    #else
+        if( !fTest )
+            releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
         assert(d >= 1 && d <= 9);
+#endif
         n /= 10;
         return 1 + (n*9 + d - 1)*10 + e;
     } else {
@@ -4760,6 +5252,9 @@ class CMainCleanup
 public:
     CMainCleanup() {}
     ~CMainCleanup() {
+#ifdef _MSC_VER
+        (void)printf( "~CMainCleanup() destructor..." );
+#endif
         // block headers
         std::map<uint256, CBlockIndex*>::iterator it1 = mapBlockIndex.begin();
         for (; it1 != mapBlockIndex.end(); it1++)
@@ -4774,5 +5269,27 @@ public:
 
         // orphan transactions
         mapOrphanTransactions.clear();
+#ifdef _MSC_VER
+        (void)printf( "done\n" );
+#endif
     }
 } instance_of_cmaincleanup;
+#ifdef _MSC_VER
+void releaseModeAssertionfailure( const char* pFileName, const int nL, const std::string strFunctionName )
+{
+    (void)printf( 
+                 "\n"
+                 "file:%s, line#%d, function %s()"
+                 "\n"
+                 "release mode assertion failure!?"
+                 "\n"
+                 "\n"
+                 ""
+                 , pFileName                //__FILE__
+                 , nL                       //__LINE__
+                 , strFunctionName.c_str()  // __PRETTY_FUNCTION__
+                );
+    StartShutdown();    // maybe there are other ways??
+}
+    #include "msvc_warnings.pop.h"
+#endif

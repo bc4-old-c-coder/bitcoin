@@ -2,6 +2,27 @@
 // Copyright (c) 2009-2012 The Bitcoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
+
+#ifdef _MSC_VER
+    #include <stdint.h>
+
+    #include "msvc_warnings.push.h"            
+
+    #include "script.h"
+    //#include "keystore.h"
+    //#include "bignum.h"
+    //#include "key.h"
+    #include "main.h"
+    //#include "sync.h"
+    //#include "util.h"
+    #include "justincase.h"       // for releaseModeAssertionfailure()
+
+    #include <boost/foreach.hpp>
+    #include <boost/tuple/tuple.hpp>
+
+    using namespace std;
+    using namespace boost;
+#else
 #include <boost/foreach.hpp>
 #include <boost/tuple/tuple.hpp>
 
@@ -15,6 +36,7 @@ using namespace boost;
 #include "main.h"
 #include "sync.h"
 #include "util.h"
+#endif
 
 bool CheckSig(vector<unsigned char> vchSig, vector<unsigned char> vchPubKey, CScript scriptCode, const CTransaction& txTo, unsigned int nIn, int nHashType, int flags);
 
@@ -698,7 +720,20 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
                     case OP_ABS:        if (bn < bnZero) bn = -bn; break;
                     case OP_NOT:        bn = (bn == bnZero); break;
                     case OP_0NOTEQUAL:  bn = (bn != bnZero); break;
-                    default:            assert(!"invalid opcode"); break;
+                    default:            
+#ifdef _MSC_VER
+                        bool
+                            fTest = (!"invalid opcode"); 
+    #ifdef _DEBUG
+                        assert(fTest);
+    #else
+                        if( !fTest )
+                            releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
+                        assert(!"invalid opcode"); 
+#endif
+                        break;
                     }
                     popstack(stack);
                     stack.push_back(bn.getvch());
@@ -746,7 +781,21 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
                     case OP_GREATERTHANOREQUAL:  bn = (bn1 >= bn2); break;
                     case OP_MIN:                 bn = (bn1 < bn2 ? bn1 : bn2); break;
                     case OP_MAX:                 bn = (bn1 > bn2 ? bn1 : bn2); break;
-                    default:                     assert(!"invalid opcode"); break;
+                    default:                     
+#ifdef _MSC_VER
+                        bool
+                            fTest = (!"invalid opcode"); 
+    #ifdef _DEBUG
+                        assert(fTest);
+    #else
+                        if( !fTest )
+                            releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
+                        assert(!"invalid opcode"); 
+#endif
+                        assert(!"invalid opcode"); 
+                        break;
                     }
                     popstack(stack);
                     popstack(stack);
@@ -792,7 +841,40 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
                     if (stack.size() < 1)
                         return false;
                     valtype& vch = stacktop(-1);
+#ifdef _MSC_VER
+                    bool
+                        fTest = false;
+
+                    if (0 == vch.size())
+                    {
+                        fTest = true;
+                        vch.resize( 1 );
+                    }
+#endif
                     valtype vchHash((opcode == OP_RIPEMD160 || opcode == OP_SHA1 || opcode == OP_HASH160) ? 20 : 32);
+#ifdef _MSC_VER
+                    if (opcode == OP_RIPEMD160)
+                        RIPEMD160(&vch[0], vch.size(), &vchHash[0]);
+                    else if (opcode == OP_SHA1)
+                        SHA1(&vch[0], vch.size(), &vchHash[0]);
+                    else if (opcode == OP_SHA256)
+                        SHA256(&vch[0], vch.size(), &vchHash[0]);
+                    else if (opcode == OP_HASH160)
+                    {
+                        uint160 
+                            hash160 = Hash160(vch);
+
+                        memcpy(&vchHash[0], &hash160, sizeof(hash160));
+                    }
+                    else if (opcode == OP_HASH256)
+                    {
+                        uint256 
+                            hash = Hash(vch.begin(), vch.end());
+
+                        memcpy(&vchHash[0], &hash, sizeof(hash));                    
+                    }                        
+#else
+
                     if (opcode == OP_RIPEMD160)
                        RIPEMD160(vch.data(), vch.size(), &vchHash[0]);
                     else if (opcode == OP_SHA1)
@@ -809,6 +891,7 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
                         uint256 hash = Hash(vch.begin(), vch.end());
                         memcpy(&vchHash[0], &hash, sizeof(hash));
                     }
+#endif
                     popstack(stack);
                     stack.push_back(vchHash);
                 }
@@ -1172,10 +1255,39 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, vector<vector<unsi
                 if (typeRet == TX_MULTISIG)
                 {
                     // Additional checks for TX_MULTISIG:
-                    unsigned char m = vSolutionsRet.front()[0];
-                    unsigned char n = vSolutionsRet.back()[0];
-                    if (m < 1 || n < 1 || m > n || vSolutionsRet.size()-2 != n)
+#ifdef _MSC_VER
+                    if (!vSolutionsRet.empty())
+                        { 
+                        unsigned char 
+                            m = vSolutionsRet.front()[0];
+
+                        unsigned char 
+                            n = vSolutionsRet.back()[0];
+
+                        if (
+                            m < 1 || 
+                            n < 1 || 
+                            m > n || 
+                            vSolutionsRet.size()-2 != n
+                           )
+                            return false;
+                        }
+                    else    // what to do? How about, as from below
+                        return false;                        
+#else
+                    unsigned char 
+                        m = vSolutionsRet.front()[0];
+
+                    unsigned char 
+                        n = vSolutionsRet.back()[0];
+                    if (
+                        m < 1 || 
+                        n < 1 || 
+                        m > n || 
+                        vSolutionsRet.size()-2 != n
+                       )
                         return false;
+#endif
                 }
                 return true;
             }
@@ -1499,8 +1611,18 @@ bool VerifyScript(const CScript& scriptSig, const CScript& scriptPubKey, const C
         // stackCopy cannot be empty here, because if it was the
         // P2SH  HASH <> EQUAL  scriptPubKey would be evaluated with
         // an empty stack and the EvalScript above would return false.
+#ifdef _MSC_VER
+        bool
+            fTest = (!stackCopy.empty());
+    #ifdef _DEBUG
+        assert(fTest);
+    #else
+        if( !fTest )
+            releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
         assert(!stackCopy.empty());
-
+#endif
         const valtype& pubKeySerialized = stackCopy.back();
         CScript pubKey2(pubKeySerialized.begin(), pubKeySerialized.end());
         popstack(stackCopy);
@@ -1518,7 +1640,18 @@ bool VerifyScript(const CScript& scriptSig, const CScript& scriptPubKey, const C
 
 bool SignSignature(const CKeyStore &keystore, const CScript& fromPubKey, CTransaction& txTo, unsigned int nIn, int nHashType)
 {
+#ifdef _MSC_VER
+    bool
+        fTest = (nIn < txTo.vin.size());
+    #ifdef _DEBUG
+    assert(fTest);
+    #else
+    if( !fTest )
+        releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
     assert(nIn < txTo.vin.size());
+#endif
     CTxIn& txin = txTo.vin[nIn];
 
     // Leave out the signature from the hash, since a signature can't sign itself.
@@ -1553,9 +1686,30 @@ bool SignSignature(const CKeyStore &keystore, const CScript& fromPubKey, CTransa
 
 bool SignSignature(const CKeyStore &keystore, const CTransaction& txFrom, CTransaction& txTo, unsigned int nIn, int nHashType)
 {
+#ifdef _MSC_VER
+    bool
+        fTest = (nIn < txTo.vin.size());
+    #ifdef _DEBUG
+    assert(fTest);
+    #else
+    if( !fTest )
+        releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
     assert(nIn < txTo.vin.size());
+#endif
     CTxIn& txin = txTo.vin[nIn];
+#ifdef _MSC_VER
+    fTest = (txin.prevout.n < txFrom.vout.size());
+    #ifdef _DEBUG
+    assert(fTest);
+    #else
+    if( !fTest )
+        releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
     assert(txin.prevout.n < txFrom.vout.size());
+#endif
     const CTxOut& txout = txFrom.vout[txin.prevout.n];
 
     return SignSignature(keystore, txout.scriptPubKey, txTo, nIn, nHashType);
@@ -1587,7 +1741,18 @@ static CScript CombineMultisig(CScript scriptPubKey, const CTransaction& txTo, u
     }
 
     // Build a map of pubkey -> signature by matching sigs to pubkeys:
+#ifdef _MSC_VER
+    bool
+        fTest = (vSolutions.size() > 1);
+    #ifdef _DEBUG
+    assert(fTest);
+    #else
+    if( !fTest )
+        releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
     assert(vSolutions.size() > 1);
+#endif
     unsigned int nSigsRequired = vSolutions.front()[0];
     unsigned int nPubKeys = vSolutions.size()-2;
     map<valtype, valtype> sigs;
@@ -1904,3 +2069,6 @@ bool CScriptCompressor::Decompress(unsigned int nSize, const std::vector<unsigne
     }
     return false;
 }
+#ifdef _MSC_VER
+    #include "msvc_warnings.pop.h"            
+#endif

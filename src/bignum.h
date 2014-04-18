@@ -5,6 +5,10 @@
 #ifndef BITCOIN_BIGNUM_H
 #define BITCOIN_BIGNUM_H
 
+#ifdef _MSC_VER
+    #include "msvc_warnings.push.h"
+#endif
+
 #include <stdexcept>
 #include <vector>
 #include <openssl/bn.h>
@@ -587,4 +591,7 @@ inline bool operator>=(const CBigNum& a, const CBigNum& b) { return (BN_cmp(&a, 
 inline bool operator<(const CBigNum& a, const CBigNum& b)  { return (BN_cmp(&a, &b) < 0); }
 inline bool operator>(const CBigNum& a, const CBigNum& b)  { return (BN_cmp(&a, &b) > 0); }
 
+#ifdef _MSC_VER
+    #include "msvc_warnings.pop.h"
+#endif
 #endif

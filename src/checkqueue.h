@@ -163,10 +163,36 @@ private:
 public:
     CCheckQueueControl(CCheckQueue<T> *pqueueIn) : pqueue(pqueueIn), fDone(false) {
         // passed queue is supposed to be unused, or NULL
-        if (pqueue != NULL) {
+        if (pqueue != NULL) 
+        {
+#ifdef _MSC_VER
+            bool
+                fTest = (pqueue->nTotal == pqueue->nIdle);
+    #ifdef _DEBUG
+            assert(fTest);
+    #else
+            if( !fTest )
+                releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+            fTest = (0 == pqueue->nTodo);
+    #ifdef _DEBUG
+            assert(fTest);
+    #else
+            if( !fTest )
+                releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+            fTest = (true == pqueue->fAllOk);
+    #ifdef _DEBUG
+            assert(fTest);
+    #else
+            if( !fTest )
+                releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
             assert(pqueue->nTotal == pqueue->nIdle);
             assert(pqueue->nTodo == 0);
             assert(pqueue->fAllOk == true);
+#endif
         }
     }
 

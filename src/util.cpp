@@ -3,6 +3,10 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#ifdef _MSC_VER
+    #include <stdint.h>
+#endif
+
 #ifndef WIN32
 // for posix_fallocate
 #ifdef __linux__
@@ -13,10 +17,17 @@
 #include <sys/resource.h>
 #endif
 
+#ifdef _MSC_VER
+    //#include "util.h"
+    #include "sync.h"
+    //#include "version.h"
+    #include "ui_interface.h"
+#else
 #include "util.h"
 #include "sync.h"
 #include "version.h"
 #include "ui_interface.h"
+#endif
 #include <boost/algorithm/string/join.hpp>
 #include <boost/algorithm/string/case_conv.hpp> // for to_lower()
 #include <boost/algorithm/string/predicate.hpp> // for startswith() and endswith()
@@ -223,9 +234,27 @@ static boost::mutex* mutexDebugLog = NULL;
 
 static void DebugPrintInit()
 {
+#ifdef _MSC_VER
+    bool
+        fTest = (fileout == NULL);
+    #ifdef _DEBUG
+    assert(fTest);
+    #else
+    if( !fTest )
+        releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+
+    fTest = (mutexDebugLog == NULL);
+    #ifdef _DEBUG
+    assert(fTest);
+    #else
+    if( !fTest )
+        releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
     assert(fileout == NULL);
     assert(mutexDebugLog == NULL);
-
+#endif
     boost::filesystem::path pathDebug = GetDataDir() / "debug.log";
     fileout = fopen(pathDebug.string().c_str(), "a");
     if (fileout) setbuf(fileout, NULL); // unbuffered
@@ -247,7 +276,40 @@ int OutputDebugStringF(const char* pszFormat, ...)
     else if (!fPrintToDebugger)
     {
         static bool fStartedNewLine = true;
+#ifdef _MSC_VER            
+        // call_once() fails misrerably here when 
+        // DEBUG_LOCKCONTENTION &/or DEBUG_LOCKORDER and debug
+        // are defined. The file is never opened and no data is recorded.
+
+        // The problem is that DebugPrintInit() calls GetDataDir()
+        // which calls Lock() which calls push_lock() and if (fDebug) 
+        // calls printf() which recurses OutputDebugStringF(), ... and 
+        // boost::call_once() just mnakes it all worse!
+        //
+        // This is observed on Windows compiling with gcc or MSVC++!!
+        // The code below does work though!  I believe the first printf() 
+        // may be absorbed in that one recursion?  I didn't test it.
+        //
+        // The upshot of all of this is that the provisio in .../doc/coding.md
+        // where it states in the 
+        //                    Locking/mutex usage notes
+        // ... Compile with -DDEBUG_LOCKORDER to get lock order
+        //inconsistencies reported in the debug.log file.
+        //
+        // This is impossible to obtain with the boost::call_once() code
+        // which goes back to at least bitcoind 0.8.3
+
+        static bool
+            fAvoidBoostOnceWithAbool = true;            
+    
+        if( fAvoidBoostOnceWithAbool )
+            {
+            fAvoidBoostOnceWithAbool = false;
+            DebugPrintInit();
+            }
+#else            
         boost::call_once(&DebugPrintInit, debugPrintInitFlag);
+#endif        
 
         if (fileout == NULL)
             return ret;
@@ -313,8 +375,14 @@ string vstrprintf(const char *format, va_list ap)
     int ret;
     loop
     {
+#ifndef _MSC_VER
         va_list arg_ptr;
         va_copy(arg_ptr, ap);
+#else
+        va_list 
+            arg_ptr = ap;
+#endif
+
 #ifdef WIN32
         ret = _vsnprintf(p, limit, format, arg_ptr);
 #else
@@ -541,12 +609,18 @@ void ParseParameters(int argc, const char* const argv[])
 {
     mapArgs.clear();
     mapMultiArgs.clear();
-    for (int i = 1; i < argc; i++)
+    for (int i = 1; i < argc; ++i)
     {
-        std::string str(argv[i]);
-        std::string strValue;
-        size_t is_index = str.find('=');
-        if (is_index != std::string::npos)
+        std::string 
+            str(argv[i]);
+
+        std::string 
+            strValue;
+
+        size_t 
+            is_index = str.find('=');
+
+        if (is_index != std::string::npos)  // i.e. there is an '='
         {
             strValue = str.substr(is_index+1);
             str = str.substr(0, is_index);
@@ -556,9 +630,14 @@ void ParseParameters(int argc, const char* const argv[])
         if (boost::algorithm::starts_with(str, "/"))
             str = "-" + str.substr(1);
 #endif
-        if (str[0] != '-')
-            break;
 
+#ifdef _MSC_VER
+        if ('-' != str[0])
+            continue;
+#else
+        if (str[0] != '-')
+            break;                          // why? This forces all -arg=xxx to be first
+#endif
         mapArgs[str] = strValue;
         mapMultiArgs[str].push_back(strValue);
     }
@@ -566,7 +645,8 @@ void ParseParameters(int argc, const char* const argv[])
     // New 0.6 features:
     BOOST_FOREACH(const PAIRTYPE(string,string)& entry, mapArgs)
     {
-        string name = entry.first;
+        string 
+            name = entry.first;
 
         //  interpret --foo as -foo (as long as both are not set)
         if (name.find("--") == 0)
@@ -761,6 +841,10 @@ vector<unsigned char> DecodeBase64(const char* p, bool* pfInvalid)
 string DecodeBase64(const string& str)
 {
     vector<unsigned char> vchRet = DecodeBase64(str.c_str());
+#ifdef _MSC_VER
+    if( vchRet.empty() )    // can one return the nul string?
+        return string( "" );
+#endif
     return string((const char*)&vchRet[0], vchRet.size());
 }
 
@@ -948,6 +1032,10 @@ vector<unsigned char> DecodeBase32(const char* p, bool* pfInvalid)
 string DecodeBase32(const string& str)
 {
     vector<unsigned char> vchRet = DecodeBase32(str.c_str());
+#ifdef _MSC_VER
+    if( vchRet.empty() )
+        return string( "" );
+#endif
     return string((const char*)&vchRet[0], vchRet.size());
 }
 
@@ -1092,8 +1180,11 @@ const boost::filesystem::path &GetDataDir(bool fNetSpecific)
 
 boost::filesystem::path GetConfigFile()
 {
-    boost::filesystem::path pathConfigFile(GetArg("-conf", "bitcoin.conf"));
-    if (!pathConfigFile.is_complete()) pathConfigFile = GetDataDir(false) / pathConfigFile;
+    boost::filesystem::path 
+        pathConfigFile(GetArg("-conf", "bitcoin.conf"));
+
+    if (!pathConfigFile.is_complete()) 
+        pathConfigFile = GetDataDir(false) / pathConfigFile;
     return pathConfigFile;
 }
 

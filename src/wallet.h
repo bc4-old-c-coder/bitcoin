@@ -172,7 +172,11 @@ public:
     bool AddToWalletIfInvolvingMe(const uint256 &hash, const CTransaction& tx, const CBlock* pblock, bool fUpdate = false, bool fFindBlock = false);
     bool EraseFromWallet(uint256 hash);
     void WalletUpdateSpent(const CTransaction& prevout);
+#ifdef _MSC_VER
+    int ScanForWalletTransactions(CBlockIndex* pindexStart, bool fUpdate = false, int nTotalNumberofBlocksToScan = 0);
+#else
     int ScanForWalletTransactions(CBlockIndex* pindexStart, bool fUpdate = false);
+#endif
     void ReacceptWalletTransactions();
     void ResendWalletTransactions();
     int64 GetBalance() const;

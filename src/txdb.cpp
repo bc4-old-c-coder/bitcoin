@@ -152,7 +152,7 @@ bool CCoinsViewDB::GetStats(CCoinsStats &stats) {
             }
             pcursor->Next();
         } catch (std::exception &e) {
-            return error("%s() : deserialize error", BOOST_CURRENT_FUNCTION);
+            return error("%s() : deserialize error", __PRETTY_FUNCTION__);
         }
     }
     delete pcursor;
@@ -193,10 +193,22 @@ bool CBlockTreeDB::LoadBlockIndexGuts()
     ssKeySet << make_pair('b', uint256(0));
     pcursor->Seek(ssKeySet.str());
 
+#ifdef _MSC_VER              
+    int
+        nCount = 0;
+    int64
+        n64MilliSecondsTotal,
+        n64MilliSecondsStart,
+        n64MilliSecondsNow;
+
+    n64MilliSecondsStart = GetTimeMillis();
+#endif
     // Load mapBlockIndex
-    while (pcursor->Valid()) {
+    while (pcursor->Valid()) 
+    {
         boost::this_thread::interruption_point();
-        try {
+        try 
+        {
             leveldb::Slice slKey = pcursor->key();
             CDataStream ssKey(slKey.data(), slKey.data()+slKey.size(), SER_DISK, CLIENT_VERSION);
             char chType;
@@ -223,21 +235,59 @@ bool CBlockTreeDB::LoadBlockIndexGuts()
                 pindexNew->nTx            = diskindex.nTx;
 
                 // Watch for genesis block
-                if (pindexGenesisBlock == NULL && diskindex.GetBlockHash() == hashGenesisBlock)
-                    pindexGenesisBlock = pindexNew;
-
+#ifdef _MSC_VER
+                if (0 == diskindex.nHeight )    // this must be a faster test?
+#endif                                    
+                    if (pindexGenesisBlock == NULL && 
+                        diskindex.GetBlockHash() == hashGenesisBlock
+                       )
+                    {
+                        pindexGenesisBlock = pindexNew;
+#ifdef _MSC_VER
+                        if( fPrintToConsole )
+                            (void)printf( 
+                                         " Found block 0"
+                                         "\n" 
+                                        ); 
+#endif  
+                    }                                  
                 if (!pindexNew->CheckIndex())
                     return error("LoadBlockIndex() : CheckIndex failed: %s", pindexNew->ToString().c_str());
 
                 pcursor->Next();
+#ifdef _MSC_VER              
+                ++nCount;
+                if(
+                   fPrintToConsole &&
+                   nCount &&
+                   ( !( nCount % 10 ) )
+                  )                         // show some activity
+                    (void)printf( 
+                                "\r"
+                                "%6d "
+                                "", 
+                                (diskindex.nHeight)/*  / 10 */
+                                );
+#endif                                            
             } else {
                 break; // if shutdown requested or finished loading block index
             }
         } catch (std::exception &e) {
-            return error("%s() : deserialize error", BOOST_CURRENT_FUNCTION);
+            return error("%s() : deserialize error", __PRETTY_FUNCTION__);
         }
     }
     delete pcursor;
+#ifdef _MSC_VER    
+    (void)printf( "\n" );
+    n64MilliSecondsNow = GetTimeMillis();
+    n64MilliSecondsTotal = n64MilliSecondsNow - n64MilliSecondsStart;
 
+    (void)printf( "%d iterations in %.3f secs"
+                  "\n"
+                  "",
+                  nCount,
+                  n64MilliSecondsTotal / 1000.0
+                );
+#endif    
     return true;
 }

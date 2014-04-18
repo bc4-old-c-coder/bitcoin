@@ -5,10 +5,20 @@
 #ifndef BITCOIN_MAIN_H
 #define BITCOIN_MAIN_H
 
+#ifdef _MSC_VER
+    #include "msvc_warnings.push.h"
+
+    #define __PRETTY_FUNCTION__ __FUNCTION__
+#endif    
+
 #include "bignum.h"
 #include "sync.h"
 #include "net.h"
 #include "script.h"
+
+#ifdef _MSC_VER
+    #include "justincase.h"       // for releaseModeAssertionfailure()
+#endif
 
 #include <list>
 
@@ -691,6 +701,7 @@ public:
 
     CTxOutCompressor(CTxOut &txoutIn) : txout(txoutIn) { }
 
+#ifdef _MSC_VER
     IMPLEMENT_SERIALIZE({
         if (!fRead) {
             uint64 nVal = CompressAmount(txout.nValue);
@@ -703,6 +714,20 @@ public:
         CScriptCompressor cscript(REF(txout.scriptPubKey));
         READWRITE(cscript);
     };)
+#else
+    IMPLEMENT_SERIALIZE(({
+        if (!fRead) {
+            uint64 nVal = CompressAmount(txout.nValue);
+            READWRITE(VARINT(nVal));
+        } else {
+            uint64 nVal = 0;
+            READWRITE(VARINT(nVal));
+            txout.nValue = DecompressAmount(nVal);
+        }
+        CScriptCompressor cscript(REF(txout.scriptPubKey));
+        READWRITE(cscript);
+    });)
+#endif
 };
 
 /** Undo information for a CTxIn
@@ -816,7 +841,7 @@ public:
             filein >> hashChecksum;
         }
         catch (std::exception &e) {
-            return error("%s() : deserialize or I/O error", BOOST_CURRENT_FUNCTION);
+            return error("%s() : deserialize or I/O error", __PRETTY_FUNCTION__);
         }
 
         // Verify checksum
@@ -1460,7 +1485,7 @@ public:
             filein >> *this;
         }
         catch (std::exception &e) {
-            return error("%s() : deserialize or I/O error", BOOST_CURRENT_FUNCTION);
+            return error("%s() : deserialize or I/O error", __PRETTY_FUNCTION__);
         }
 
         // Check the header
@@ -1513,7 +1538,11 @@ public:
 
     // Store block on disk
     // if dbp is provided, the file is known to already reside on disk
+#ifdef _MSC_VER
+    bool AcceptBlock(CValidationState &state, uint256 hash, CDiskBlockPos *dbp = NULL);
+#else
     bool AcceptBlock(CValidationState &state, CDiskBlockPos *dbp = NULL);
+#endif
 };
 
 
@@ -1800,7 +1829,12 @@ public:
 
 struct CBlockIndexWorkComparator
 {
-    bool operator()(CBlockIndex *pa, CBlockIndex *pb) {
+#ifdef _MSC_VER
+    bool operator()(CBlockIndex *pa, CBlockIndex *pb) const
+#else
+    bool operator()(CBlockIndex *pa, CBlockIndex *pb)
+#endif
+    {
         if (pa->nChainWork > pb->nChainWork) return false;
         if (pa->nChainWork < pb->nChainWork) return true;
 
@@ -2259,4 +2293,7 @@ public:
     )
 };
 
+#ifdef _MSC_VER
+    #include "msvc_warnings.pop.h"
+#endif
 #endif

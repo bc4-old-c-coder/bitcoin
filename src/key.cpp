@@ -2,6 +2,13 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#ifdef _MSC_VER
+    #include <stdint.h>                 // this gets rid of the 
+    // ...\program files\microsoft visual studio 8\vc\include\stdint.h(244) : warning C4005: 'INTMAX_C' : macro redefinition
+    // ...\libs\boost_1_53_0\boost\cstdint.hpp(423) : see previous definition of 'INTMAX_C'
+    #include "msvc_warnings.push.h"
+#endif
+
 #include <map>
 
 #include <openssl/ecdsa.h>
@@ -408,3 +415,6 @@ bool CKey::IsValid()
     key2.SetSecret(secret, fCompr);
     return GetPubKey() == key2.GetPubKey();
 }
+#ifdef _MSC_VER
+    #include "msvc_warnings.pop.h"
+#endif

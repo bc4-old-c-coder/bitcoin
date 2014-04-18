@@ -3,6 +3,15 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#ifdef _MSC_VER
+    //#include "wallet.h"
+    //#include "walletdb.h"
+    #include "init.h"
+    #include "bitcoinrpc.h"
+    //#include "base58.h"    
+    
+    #include <boost/assign/list_of.hpp>
+#else
 #include <boost/assign/list_of.hpp>
 
 #include "wallet.h"
@@ -10,6 +19,7 @@
 #include "bitcoinrpc.h"
 #include "init.h"
 #include "base58.h"
+#endif
 
 using namespace std;
 using namespace boost;

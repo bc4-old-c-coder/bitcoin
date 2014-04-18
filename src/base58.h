@@ -15,6 +15,10 @@
 #ifndef BITCOIN_BASE58_H
 #define BITCOIN_BASE58_H
 
+#ifdef _MSC_VER
+    #include "msvc_warnings.push.h"
+#endif
+
 #include <string>
 #include <vector>
 
@@ -22,6 +26,10 @@
 #include "key.h"
 #include "script.h"
 #include "allocators.h"
+
+#ifdef _MSC_VER
+    #include "justincase.h"       // for releaseModeAssertionfailure()
+#endif
 
 static const char* pszBase58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
@@ -400,7 +408,18 @@ class CBitcoinSecret : public CBase58Data
 public:
     void SetSecret(const CSecret& vchSecret, bool fCompressed)
     {
+#ifdef _MSC_VER
+        bool
+            fTest = (32 == vchSecret.size());
+    #ifdef _DEBUG
+        assert(fTest);
+    #else
+        if( !fTest )
+            releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
         assert(vchSecret.size() == 32);
+#endif
         SetData(fTestNet ? 239 : 128, &vchSecret[0], vchSecret.size());
         if (fCompressed)
             vchData.push_back(1);
@@ -453,4 +472,7 @@ public:
     }
 };
 
+#ifdef _MSC_VER
+    #include "msvc_warnings.pop.h"
+#endif
 #endif // BITCOIN_BASE58_H

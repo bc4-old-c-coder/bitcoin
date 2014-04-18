@@ -4,6 +4,10 @@
 #ifndef BITCOIN_LEVELDB_H
 #define BITCOIN_LEVELDB_H
 
+#ifdef _MSC_VER
+    #include "msvc_warnings.push.h"
+#endif
+
 #include "serialize.h"
 
 #include <leveldb/db.h>
@@ -91,13 +95,37 @@ public:
         if (!status.ok()) {
             if (status.IsNotFound())
                 return false;
+#ifdef _MSC_VER
+            printf(
+                    "\n"
+                    "LevelDB read (part1) failure: "
+                    "%s"
+                    "\n"
+                    "", 
+                    status.ToString().c_str()
+                  );
+#else
             printf("LevelDB read failure: %s\n", status.ToString().c_str());
+#endif
             HandleError(status);
         }
-        try {
+        try 
+        {
             CDataStream ssValue(strValue.data(), strValue.data() + strValue.size(), SER_DISK, CLIENT_VERSION);
             ssValue >> value;
-        } catch(std::exception &e) {
+        } catch(std::exception &e) 
+        {
+#ifdef _MSC_VER
+            printf(
+                    "\n"
+                    "LevelDB Read (part2)failure(?): "
+                    "%s (%s)"
+                    "\n"
+                    "", 
+                    status.ToString().c_str(),
+                    e.what()
+                  );
+#endif
             return false;
         }
         return true;
@@ -149,5 +177,7 @@ public:
         return pdb->NewIterator(iteroptions);
     }
 };
-
+#ifdef _MSC_VER
+    #include "msvc_warnings.pop.h"
+#endif
 #endif // BITCOIN_LEVELDB_H

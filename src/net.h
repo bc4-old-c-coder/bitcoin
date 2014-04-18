@@ -6,6 +6,8 @@
 #define BITCOIN_NET_H
 
 #ifdef _MSC_VER
+    #include "msvc_warnings.push.h"
+
 #include <winsock2.h>
 #include <Windows.h>
 #endif
@@ -26,6 +28,10 @@
 #include "addrman.h"
 #include "hash.h"
 #include "bloom.h"
+
+#ifdef _MSC_VER
+    #include "justincase.h"       // for releaseModeAssertionfailure()
+#endif
 
 class CNode;
 class CBlockIndex;
@@ -288,7 +294,18 @@ public:
 
     int GetRefCount()
     {
+#ifdef _MSC_VER
+        bool
+            fTest = (nRefCount >= 0);
+    #ifdef _DEBUG
+        assert(fTest);
+    #else
+        if( !fTest )
+            releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
         assert(nRefCount >= 0);
+#endif
         return nRefCount;
     }
 
@@ -392,7 +409,18 @@ public:
     void BeginMessage(const char* pszCommand) EXCLUSIVE_LOCK_FUNCTION(cs_vSend)
     {
         ENTER_CRITICAL_SECTION(cs_vSend);
+#ifdef _MSC_VER
+        bool
+            fTest = (0 == ssSend.size());
+    #ifdef _DEBUG
+        assert(fTest);
+    #else
+        if( !fTest )
+            releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
         assert(ssSend.size() == 0);
+#endif
         ssSend << CMessageHeader(pszCommand, 0);
         if (fDebug)
             printf("sending: %s ", pszCommand);
@@ -430,7 +458,18 @@ public:
         uint256 hash = Hash(ssSend.begin() + CMessageHeader::HEADER_SIZE, ssSend.end());
         unsigned int nChecksum = 0;
         memcpy(&nChecksum, &hash, sizeof(nChecksum));
+#ifdef _MSC_VER
+        bool
+            fTest = (ssSend.size () >= CMessageHeader::CHECKSUM_OFFSET + sizeof(nChecksum));
+    #ifdef _DEBUG
+        assert(fTest);
+    #else
+        if( !fTest )
+            releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
         assert(ssSend.size () >= CMessageHeader::CHECKSUM_OFFSET + sizeof(nChecksum));
+#endif
         memcpy((char*)&ssSend[CMessageHeader::CHECKSUM_OFFSET], &nChecksum, sizeof(nChecksum));
 
         if (fDebug) {
@@ -643,4 +682,7 @@ class CTransaction;
 void RelayTransaction(const CTransaction& tx, const uint256& hash);
 void RelayTransaction(const CTransaction& tx, const uint256& hash, const CDataStream& ss);
 
+#ifdef _MSC_VER
+    #include "msvc_warnings.pop.h"
+#endif
 #endif

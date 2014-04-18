@@ -190,6 +190,9 @@ extern json_spirit::Value signrawtransaction(const json_spirit::Array& params, b
 extern json_spirit::Value sendrawtransaction(const json_spirit::Array& params, bool fHelp);
 
 extern json_spirit::Value getblockcount(const json_spirit::Array& params, bool fHelp); // in rpcblockchain.cpp
+#ifdef _MSC_VER
+extern json_spirit::Value getcurrentblockandtime(const json_spirit::Array& params, bool fHelp);
+#endif
 extern json_spirit::Value getdifficulty(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value settxfee(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getrawmempool(const json_spirit::Array& params, bool fHelp);

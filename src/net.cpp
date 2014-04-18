@@ -3,6 +3,10 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#ifdef _MSC_VER
+    #include "msvc_warnings.push.h"
+#endif
+
 #include "db.h"
 #include "net.h"
 #include "init.h"
@@ -707,9 +711,21 @@ void SocketSendData(CNode *pnode)
 {
     std::deque<CSerializeData>::iterator it = pnode->vSendMsg.begin();
 
-    while (it != pnode->vSendMsg.end()) {
+    while (it != pnode->vSendMsg.end()) 
+    {
         const CSerializeData &data = *it;
+#ifdef _MSC_VER
+        bool
+            fTest = (data.size() > pnode->nSendOffset);
+    #ifdef _DEBUG
+        assert(fTest);
+    #else
+        if( !fTest )
+            releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
         assert(data.size() > pnode->nSendOffset);
+#endif
         int nBytes = send(pnode->hSocket, &data[pnode->nSendOffset], data.size() - pnode->nSendOffset, MSG_NOSIGNAL | MSG_DONTWAIT);
         if (nBytes > 0) {
             pnode->nLastSend = GetTime();
@@ -738,9 +754,29 @@ void SocketSendData(CNode *pnode)
         }
     }
 
-    if (it == pnode->vSendMsg.end()) {
+    if (it == pnode->vSendMsg.end()) 
+    {
+#ifdef _MSC_VER
+        bool
+            fTest = (0 == pnode->nSendOffset);
+    #ifdef _DEBUG
+        assert(fTest);
+    #else
+        if( !fTest )
+            releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+
+        fTest = (0 == pnode->nSendSize);
+    #ifdef _DEBUG
+        assert(fTest);
+    #else
+        if( !fTest )
+            releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
         assert(pnode->nSendOffset == 0);
         assert(pnode->nSendSize == 0);
+#endif
     }
     pnode->vSendMsg.erase(pnode->vSendMsg.begin(), it);
 }
@@ -1518,14 +1554,43 @@ void ThreadOpenAddedConnections()
         {
             LOCK(cs_vNodes);
             BOOST_FOREACH(CNode* pnode, vNodes)
-                for (list<vector<CService> >::iterator it = lservAddressesToAdd.begin(); it != lservAddressesToAdd.end(); it++)
+                for (list<vector<CService> >::iterator it = lservAddressesToAdd.begin(); 
+                     it != lservAddressesToAdd.end(); 
+                     it++
+                    )
+                {
                     BOOST_FOREACH(CService& addrNode, *(it))
+                    {
+#ifndef _MSC_VER
                         if (pnode->addr == addrNode)
                         {
                             it = lservAddressesToAdd.erase(it);
                             it--;
                             break;
                         }
+                    }
+#else
+                        if (pnode->addr == addrNode)
+                        {
+                            it = lservAddressesToAdd.erase(it);
+
+                            // now it gets tricky!
+                            if( lservAddressesToAdd.empty() )
+                                break;          // can't --it, nor ++it
+                            // else it's not empty, so
+                            if (it == lservAddressesToAdd.begin())
+                                break;          // can't --it
+                            --it;               // finally, a legal place!!    
+                            break;
+                        }
+                        // else we stay in the inner BOOST_FOREACH() loop
+                    }
+                    if( lservAddressesToAdd.empty() )
+                        break;      // can't do a ++it
+                    if (it == lservAddressesToAdd.end())
+                        break;      // can't do a ++it
+#endif
+                }
         }
         BOOST_FOREACH(vector<CService>& vserv, lservAddressesToAdd)
         {
@@ -1902,6 +1967,9 @@ public:
     }
     ~CNetCleanup()
     {
+#ifdef _MSC_VER
+        (void)printf( "~CNetCleanup() destructor..." );
+#endif
         // Close sockets
         BOOST_FOREACH(CNode* pnode, vNodes)
             if (pnode->hSocket != INVALID_SOCKET)
@@ -1926,6 +1994,9 @@ public:
 #ifdef WIN32
         // Shutdown Windows Sockets
         WSACleanup();
+#endif
+#ifdef _MSC_VER
+        (void)printf( "done\n" );
 #endif
     }
 }
@@ -1975,3 +2046,6 @@ void RelayTransaction(const CTransaction& tx, const uint256& hash, const CDataSt
             pnode->PushInventory(inv);
     }
 }
+#ifdef _MSC_VER
+    #include "msvc_warnings.pop.h"
+#endif

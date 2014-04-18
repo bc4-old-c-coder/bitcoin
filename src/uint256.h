@@ -5,6 +5,10 @@
 #ifndef BITCOIN_UINT256_H
 #define BITCOIN_UINT256_H
 
+#ifdef _MSC_VER
+    #include "msvc_warnings.push.h"
+#endif
+
 #include <limits.h>
 #include <stdio.h>
 #include <string.h>
@@ -785,4 +789,7 @@ inline int Testuint256AdHoc(std::vector<std::string> vArg)
 
 #endif
 
+#ifdef _MSC_VER
+    #include "msvc_warnings.push.h"
+#endif
 #endif

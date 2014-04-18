@@ -2,6 +2,10 @@
 // Alert system
 //
 
+#ifdef _MSC_VER
+    #include "msvc_warnings.push.h"
+#endif
+
 #include <algorithm>
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/replace.hpp>
@@ -258,3 +262,6 @@ bool CAlert::ProcessAlert(bool fThread)
     printf("accepted alert %d, AppliesToMe()=%d\n", nID, AppliesToMe());
     return true;
 }
+#ifdef _MSC_VER
+    #include "msvc_warnings.pop.h"
+#endif

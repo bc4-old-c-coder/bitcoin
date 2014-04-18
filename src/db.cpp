@@ -3,9 +3,19 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#ifdef _MSC_VER
+    #include "msvc_warnings.push.h"
+#endif
+
 #include "db.h"
 #include "util.h"
 #include "main.h"
+#ifdef _MSC_VER
+    #include "justincase.h"       // for releaseModeAssertionfailure()
+    #ifdef _DEBUG
+        #include <direct.h>
+    #endif
+#endif
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
 
@@ -66,8 +76,16 @@ bool CDBEnv::Open(const boost::filesystem::path& pathIn)
     path = pathIn;
     filesystem::path pathLogDir = path / "database";
     filesystem::create_directory(pathLogDir);
+#ifdef _MSC_VER
+    filesystem::path 
+        pathErrorFile = path / "BerkeleyDB_wallet_ErrorFile.log";   // call irt what it is
+#else
     filesystem::path pathErrorFile = path / "db.log";
+#endif
+
+#ifndef _MSC_VER
     printf("dbenv.open LogDir=%s ErrorFile=%s\n", pathLogDir.string().c_str(), pathErrorFile.string().c_str());
+#endif
 
     unsigned int nEnvFlags = 0;
     if (GetBoolArg("-privdb", true))
@@ -95,6 +113,23 @@ bool CDBEnv::Open(const boost::filesystem::path& pathIn)
                      S_IRUSR | S_IWUSR);
     if (ret != 0)
         return error("CDB() : error %s (%d) opening database environment", DbEnv::strerror(ret), ret);
+#ifdef _MSC_VER
+    (void)printf(
+        "\n"                // kind of important, so give it its own space
+        "CDBEnv::Open()'ed successfully) on dbenv.open() the BerkeleyDB DbEnv wallet code"
+        "\n"
+        "MainDir  =%s"
+        "\n"
+        "LogDir   =[MainDir]/%s"
+        "\n"
+        "ErrorFile=[MainDir]/%s"  // was kind of a misnomer (maybe it was never fixed?)
+        "\n"
+        "",
+        path.string().c_str(),
+        pathLogDir.filename().string().c_str(),     // a bit tricky since it's a directory!
+        pathErrorFile.filename().string().c_str()
+                );
+#endif
 
     fDbEnvInit = true;
     fMockDb = false;
@@ -136,7 +171,19 @@ void CDBEnv::MakeMock()
 CDBEnv::VerifyResult CDBEnv::Verify(std::string strFile, bool (*recoverFunc)(CDBEnv& dbenv, std::string strFile))
 {
     LOCK(cs_db);
+
+#ifdef _MSC_VER
+    bool
+        fTest = (0 == mapFileUseCount.count(strFile));
+    #ifdef _DEBUG
+    assert(fTest);
+    #else
+    if( !fTest )
+        releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
     assert(mapFileUseCount.count(strFile) == 0);
+#endif
 
     Db db(&dbenv, 0);
     int result = db.verify(strFile.c_str(), NULL, NULL, 0);
@@ -154,7 +201,19 @@ bool CDBEnv::Salvage(std::string strFile, bool fAggressive,
                      std::vector<CDBEnv::KeyValPair >& vResult)
 {
     LOCK(cs_db);
+
+#ifdef _MSC_VER
+    bool
+        fTest = (0 == mapFileUseCount.count(strFile));
+    #ifdef _DEBUG
+    assert(fTest);
+    #else
+    if( !fTest )
+        releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
     assert(mapFileUseCount.count(strFile) == 0);
+#endif
 
     u_int32_t flags = DB_SALVAGE;
     if (fAggressive) flags |= DB_AGGRESSIVE;
@@ -465,7 +524,24 @@ void CDBEnv::Flush(bool fShutdown)
                 dbenv.log_archive(&listp, DB_ARCH_REMOVE);
                 Close();
                 if (!fMockDb)
-                    boost::filesystem::remove_all(path / "database");
+#ifdef _MSC_VER
+                {
+                    try
+                    {
+                        boost::filesystem::remove_all(path / "database");     
+                    }
+                    catch (std::exception& e) 
+                    //catch(boost::filesystem::filesystem_error &error) 
+                    {
+                        PrintExceptionContinue(&e, 
+                                                "shutdown berkeley DB log "
+                                                "directory delete failure, best to reboot? And run again."
+                                              );
+                    }
+                }
+#else
+                    boost::filesystem::remove_all(path / "database");     
+#endif
             }
         }
     }
@@ -581,4 +657,6 @@ bool CAddrDB::Read(CAddrMan& addr)
 
     return true;
 }
-
+#ifdef _MSC_VER
+    #include "msvc_warnings.pop.h"
+#endif

@@ -3,17 +3,30 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#ifdef _MSC_VER
+    #include <stdint.h>                 // this gets rid of the 
+    // ...\program files\microsoft visual studio 8\vc\include\stdint.h(244) : warning C4005: 'INTMAX_C' : macro redefinition
+    // ...\libs\boost_1_53_0\boost\cstdint.hpp(423) : see previous definition of 'INTMAX_C'
+    #include "msvc_warnings.push.h"
+
+    #include "netbase.h"
+    //#include "util.h"
+    //#include "sync.h"
+    //#include "hash.h"  
+    #include "db.h"     // for ssize_t    
+#else
 #include "netbase.h"
 #include "util.h"
 #include "sync.h"
 #include "hash.h"
+#endif
 
 #ifndef WIN32
 #include <sys/fcntl.h>
 #endif
 
 #ifdef _MSC_VER
-#define ssize_t size_t
+//#define ssize_t size_t
 #endif
 
 #include <boost/algorithm/string/case_conv.hpp> // for to_lower()
@@ -96,7 +109,18 @@ bool static LookupIntern(const char *pszName, std::vector<CNetAddr>& vIP, unsign
     {
         if (aiTrav->ai_family == AF_INET)
         {
+#ifdef _MSC_VER
+            bool
+                fTest = (aiTrav->ai_addrlen >= sizeof(sockaddr_in));
+    #ifdef _DEBUG
+            assert(fTest);
+    #else
+            if( !fTest )
+                releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
             assert(aiTrav->ai_addrlen >= sizeof(sockaddr_in));
+#endif
             vIP.push_back(CNetAddr(((struct sockaddr_in*)(aiTrav->ai_addr))->sin_addr));
         }
 
@@ -422,8 +446,18 @@ bool static ConnectSocketDirectly(const CService &addrConnect, SOCKET& hSocketRe
     return true;
 }
 
-bool SetProxy(enum Network net, CService addrProxy, int nSocksVersion) {
+bool SetProxy(enum Network net, CService addrProxy, int nSocksVersion) 
+{
+#ifdef _MSC_VER
+    #ifdef _DEBUG
     assert(net >= 0 && net < NET_MAX);
+    #else
+    if( !(net >= 0 && net < NET_MAX) )
+        releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
+    assert(net >= 0 && net < NET_MAX);
+#endif
     if (nSocksVersion != 0 && nSocksVersion != 4 && nSocksVersion != 5)
         return false;
     if (nSocksVersion != 0 && !addrProxy.IsValid())
@@ -433,8 +467,18 @@ bool SetProxy(enum Network net, CService addrProxy, int nSocksVersion) {
     return true;
 }
 
-bool GetProxy(enum Network net, proxyType &proxyInfoOut) {
+bool GetProxy(enum Network net, proxyType &proxyInfoOut) 
+{
+#ifdef _MSC_VER
+    #ifdef _DEBUG
     assert(net >= 0 && net < NET_MAX);
+    #else
+    if( !(net >= 0 && net < NET_MAX) )
+        releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
+    assert(net >= 0 && net < NET_MAX);
+#endif
     LOCK(cs_proxyInfos);
     if (!proxyInfo[net].second)
         return false;
@@ -994,7 +1038,18 @@ CService::CService(const struct in6_addr& ipv6Addr, unsigned short portIn) : CNe
 
 CService::CService(const struct sockaddr_in& addr) : CNetAddr(addr.sin_addr), port(ntohs(addr.sin_port))
 {
+#ifdef _MSC_VER
+    bool
+        fTest = (AF_INET == addr.sin_family);
+    #ifdef _DEBUG
+    assert(fTest);
+    #else
+    if( !fTest )
+        releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
     assert(addr.sin_family == AF_INET);
+#endif
 }
 
 #ifdef USE_IPV6
@@ -1141,3 +1196,6 @@ void CService::SetPort(unsigned short portIn)
 {
     port = portIn;
 }
+#ifdef _MSC_VER
+    #include "msvc_warnings.pop.h"
+#endif

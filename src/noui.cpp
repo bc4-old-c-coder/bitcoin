@@ -4,8 +4,13 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "ui_interface.h"
+#ifdef _MSC_VER
+    //#include "init.h"
+    //#include "bitcoinrpc.h"
+#else
 #include "init.h"
 #include "bitcoinrpc.h"
+#endif
 
 #include <string>
 

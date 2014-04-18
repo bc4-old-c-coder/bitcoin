@@ -1,6 +1,11 @@
 // Copyright (c) 2012 The Bitcoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
+
+#ifdef _MSC_VER
+    #include "msvc_warnings.push.h"
+#endif
+
 #include <math.h>
 #include <stdlib.h>
 
@@ -180,3 +185,6 @@ void CBloomFilter::UpdateEmptyFull()
     isFull = full;
     isEmpty = empty;
 }
+#ifdef _MSC_VER
+    #include "msvc_warnings.push.h"
+#endif

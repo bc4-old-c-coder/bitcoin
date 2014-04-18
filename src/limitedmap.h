@@ -60,7 +60,18 @@ public:
                 return;
             }
         // Shouldn't ever get here
+#ifdef _MSC_VER
+        bool
+            fTest = false; //TODO remove me
+    #ifdef _DEBUG
+        assert(fTest);
+    #else
+        if( !fTest )
+            releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
         assert(0); //TODO remove me
+#endif
         map.erase(itTarget);
     }
     void update(const_iterator itIn, const mapped_type& v)
@@ -79,7 +90,18 @@ public:
                 return;
             }
         // Shouldn't ever get here
+#ifdef _MSC_VER
+        bool
+            fTest = false; //TODO remove me
+    #ifdef _DEBUG
+        assert(fTest);
+    #else
+        if( !fTest )
+            releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
         assert(0); //TODO remove me
+#endif
         itTarget->second = v;
         rmap.insert(make_pair(v, itTarget));
     }

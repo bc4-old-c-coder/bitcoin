@@ -2,6 +2,13 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#ifdef _MSC_VER
+    #include <stdint.h>                 // this gets rid of the 
+    // ...\program files\microsoft visual studio 8\vc\include\stdint.h(244) : warning C4005: 'INTMAX_C' : macro redefinition
+    // ...\libs\boost_1_53_0\boost\cstdint.hpp(423) : see previous definition of 'INTMAX_C'
+    #include "msvc_warnings.push.h"            
+#endif
+
 #include <openssl/aes.h>
 #include <openssl/evp.h>
 #include <vector>
@@ -119,3 +126,6 @@ bool DecryptSecret(const CKeyingMaterial& vMasterKey, const std::vector<unsigned
         return false;
     return cKeyCrypter.Decrypt(vchCiphertext, *((CKeyingMaterial*)&vchPlaintext));
 }
+#ifdef _MSC_VER
+    #include "msvc_warnings.pop.h"
+#endif

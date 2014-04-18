@@ -31,6 +31,9 @@
 #include <unistd.h> // for sysconf
 #endif
 
+#ifdef _MSC_VER
+    #include "justincase.h"       // for releaseModeAssertionfailure()
+#endif
 /**
  * Thread-safe class to keep track of locked (ie, non-swappable) memory pages.
  *
@@ -49,7 +52,20 @@ public:
         page_size(page_size)
     {
         // Determine bitmask for extracting page from address
+#ifdef _MSC_VER
+        bool
+            fTest = (
+                     !(page_size & (page_size-1))
+                    );
+    #ifdef _DEBUG
+        assert(fTest);
+    #else
+        if( !fTest )
+            releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
         assert(!(page_size & (page_size-1))); // size must be power of two
+#endif
         page_mask = ~(page_size - 1);
     }
 

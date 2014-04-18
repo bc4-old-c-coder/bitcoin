@@ -3,6 +3,23 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#ifdef _MSC_VER
+    #include <stdint.h>                 // this gets rid of the 
+    // ...\program files\microsoft visual studio 8\vc\include\stdint.h(244) : warning C4005: 'INTMAX_C' : macro redefinition
+    // ...\libs\boost_1_53_0\boost\cstdint.hpp(423) : see previous definition of 'INTMAX_C'
+    #include "msvc_warnings.push.h"
+
+    //#include "base58.h"
+    #include "bitcoinrpc.h"
+    #include "db.h"
+    #include "init.h"
+    //#include "main.h"
+    //#include "net.h"
+    //#include "wallet.h"
+
+    #include <boost/assign/list_of.hpp>
+    #include "justincase.h"       // for releaseModeAssertionfailure()
+#else
 #include <boost/assign/list_of.hpp>
 
 #include "base58.h"
@@ -12,6 +29,7 @@
 #include "main.h"
 #include "net.h"
 #include "wallet.h"
+#endif
 
 using namespace std;
 using namespace boost;
@@ -574,3 +592,6 @@ Value sendrawtransaction(const Array& params, bool fHelp)
 
     return hashTx.GetHex();
 }
+#ifdef _MSC_VER
+    #include "msvc_warnings.pop.h"
+#endif

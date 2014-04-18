@@ -3,6 +3,31 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#ifdef _MSC_VER
+    #include "msvc_warnings.push.h"
+    
+    #include "init.h"
+    //#include "util.h"
+    //#include "sync.h"
+    //#include "ui_interface.h"
+    //#include "base58.h"
+    #include "bitcoinrpc.h"
+    //#include "db.h"
+
+    #include <boost/asio.hpp>
+    #include <boost/asio/ip/v6_only.hpp>
+    //#include <boost/bind.hpp>
+    //#include <boost/filesystem.hpp>
+    //#include <boost/foreach.hpp>
+    //#include <boost/iostreams/concepts.hpp>
+    #include <boost/iostreams/stream.hpp>
+    #include <boost/algorithm/string.hpp>
+    //#include <boost/lexical_cast.hpp>
+    #include <boost/asio/ssl.hpp>
+    //#include <boost/filesystem/fstream.hpp>
+    //#include <boost/shared_ptr.hpp>
+    //#include <list>    
+#else
 #include "init.h"
 #include "util.h"
 #include "sync.h"
@@ -24,6 +49,7 @@
 #include <boost/filesystem/fstream.hpp>
 #include <boost/shared_ptr.hpp>
 #include <list>
+#endif
 
 using namespace std;
 using namespace boost;
@@ -112,11 +138,20 @@ Value ValueFromAmount(int64 amount)
 
 std::string HexBits(unsigned int nBits)
 {
+#ifdef _MSC_VER
+    union {
+        ::int32_t nBits;
+        char cBits[4];
+    } uBits;
+    uBits.nBits = htonl((::int32_t)nBits);
+#else
+    uBits.nBits = htonl((int32_t)nBits);
     union {
         int32_t nBits;
         char cBits[4];
     } uBits;
     uBits.nBits = htonl((int32_t)nBits);
+#endif
     return HexStr(BEGIN(uBits.cBits), END(uBits.cBits));
 }
 
@@ -202,6 +237,9 @@ static const CRPCCommand vRPCCommands[] =
     { "help",                   &help,                   true,      true },
     { "stop",                   &stop,                   true,      true },
     { "getblockcount",          &getblockcount,          true,      false },
+#ifdef _MSC_VER
+    { "getblockcountt",         &getcurrentblockandtime, true,      false },
+#endif
     { "getconnectioncount",     &getconnectioncount,     true,      false },
     { "getpeerinfo",            &getpeerinfo,            true,      false },
     { "addnode",                &addnode,                true,      true },
@@ -759,7 +797,18 @@ void StartRPCThreads()
         return;
     }
 
+#ifdef _MSC_VER
+    bool
+        fTest = (NULL == rpc_io_service);
+    #ifdef _DEBUG
+    assert(fTest);
+    #else
+    if( !fTest )
+        releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
     assert(rpc_io_service == NULL);
+#endif
     rpc_io_service = new asio::io_service();
     rpc_ssl_context = new ssl::context(*rpc_io_service, ssl::context::sslv23);
 
@@ -1058,33 +1107,65 @@ Object CallRPC(const string& strMethod, const Array& params)
                 GetConfigFile().string().c_str()));
 
     // Connect to localhost
-    bool fUseSSL = GetBoolArg("-rpcssl");
-    asio::io_service io_service;
-    ssl::context context(io_service, ssl::context::sslv23);
+    bool 
+        fUseSSL = GetBoolArg("-rpcssl");
+
+    asio::io_service 
+        io_service;
+
+    ssl::context 
+        context(io_service, ssl::context::sslv23);
+
     context.set_options(ssl::context::no_sslv2);
-    asio::ssl::stream<asio::ip::tcp::socket> sslStream(io_service, context);
-    SSLIOStreamDevice<asio::ip::tcp> d(sslStream, fUseSSL);
-    iostreams::stream< SSLIOStreamDevice<asio::ip::tcp> > stream(d);
-    if (!d.connect(GetArg("-rpcconnect", "127.0.0.1"), GetArg("-rpcport", itostr(GetDefaultRPCPort()))))
+
+    asio::ssl::stream<asio::ip::tcp::socket> 
+        sslStream(io_service, context);
+
+    SSLIOStreamDevice<asio::ip::tcp> 
+        d(sslStream, fUseSSL);
+
+    iostreams::stream< SSLIOStreamDevice<asio::ip::tcp> > 
+        stream(d);
+
+    if (
+        !d.connect(GetArg("-rpcconnect", "127.0.0.1"), 
+                   GetArg("-rpcport", itostr(GetDefaultRPCPort()))
+                  )
+       )
         throw runtime_error("couldn't connect to server");
 
     // HTTP basic authentication
-    string strUserPass64 = EncodeBase64(mapArgs["-rpcuser"] + ":" + mapArgs["-rpcpassword"]);
-    map<string, string> mapRequestHeaders;
+    string 
+        strUserPass64 = EncodeBase64(mapArgs["-rpcuser"] + ":" + mapArgs["-rpcpassword"]);
+
+    map<string, string> 
+        mapRequestHeaders;
+
     mapRequestHeaders["Authorization"] = string("Basic ") + strUserPass64;
 
     // Send request
-    string strRequest = JSONRPCRequest(strMethod, params, 1);
-    string strPost = HTTPPost(strRequest, mapRequestHeaders);
+    string 
+        strRequest = JSONRPCRequest(strMethod, params, 1);
+
+    string 
+        strPost = HTTPPost(strRequest, mapRequestHeaders);
+
     stream << strPost << std::flush;
 
     // Receive HTTP reply status
-    int nProto = 0;
-    int nStatus = ReadHTTPStatus(stream, nProto);
+    int 
+        nProto = 0;
+
+    int 
+        nStatus = ReadHTTPStatus(stream, nProto);
 
     // Receive HTTP reply message headers and body
-    map<string, string> mapHeaders;
-    string strReply;
+    map<string, string> 
+        mapHeaders;
+
+    string 
+        strReply;
+
     ReadHTTPMessage(stream, mapHeaders, strReply, nProto);
 
     if (nStatus == HTTP_UNAUTHORIZED)
@@ -1095,10 +1176,15 @@ Object CallRPC(const string& strMethod, const Array& params)
         throw runtime_error("no response from server");
 
     // Parse reply
-    Value valReply;
+    Value 
+        valReply;
+
     if (!read_string(strReply, valReply))
         throw runtime_error("couldn't parse reply from server");
-    const Object& reply = valReply.get_obj();
+
+    const Object
+        & reply = valReply.get_obj();
+
     if (reply.empty())
         throw runtime_error("expected reply to have result, error and id properties");
 
@@ -1204,18 +1290,49 @@ int CommandLineRPC(int argc, char *argv[])
         // Method
         if (argc < 2)
             throw runtime_error("too few parameters");
-        string strMethod = argv[1];
+        string 
+            strMethod = argv[1];
 
+#ifdef _MSC_VER
+        int
+            nIndex = 2;
+
+        if ((argc > 2) && IsSwitchChar(argv[2][0]))    // argument has no parameter(s)
+            nIndex = argc;
+        else
+        {
+            if ((argc > 2) && !IsSwitchChar(argv[2][0]))    // argument has parameter(s)
+            {
+                int
+                    nLastArgIndex = argc - 1;
+
+                while( IsSwitchChar(argv[nLastArgIndex][0] ))
+                    --nLastArgIndex;
+                argc = ++nLastArgIndex;
+            }
+        }
+
+        std::vector<std::string> 
+            strParams(&argv[nIndex], &argv[argc]);
+#else
         // Parameters default to strings
-        std::vector<std::string> strParams(&argv[2], &argv[argc]);
-        Array params = RPCConvertValues(strMethod, strParams);
+        std::vector<std::string> 
+            strParams(&argv[2], &argv[argc]);
+#endif        
+
+        Array 
+            params = RPCConvertValues(strMethod, strParams);
 
         // Execute
-        Object reply = CallRPC(strMethod, params);
+        Object 
+            reply = CallRPC(strMethod, params);
 
         // Parse reply
-        const Value& result = find_value(reply, "result");
-        const Value& error  = find_value(reply, "error");
+        const Value
+            & result = find_value(reply, "result");
+
+        const Value
+            & error  = find_value(reply, "error");
 
         if (error.type() != null_type)
         {
@@ -1293,3 +1410,7 @@ int main(int argc, char *argv[])
 #endif
 
 const CRPCTable tableRPC;
+
+#ifdef _MSC_VER
+    #include "msvc_warnings.pop.h"
+#endif

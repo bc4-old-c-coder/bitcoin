@@ -2,7 +2,13 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#ifdef _MSC_VER
+    #include "wallet.h"    
+    //#include "net.h"    
+#else    
 #include "net.h"
+#endif
+
 #include "bitcoinrpc.h"
 
 using namespace json_spirit;

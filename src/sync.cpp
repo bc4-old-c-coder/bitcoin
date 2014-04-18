@@ -2,8 +2,20 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#ifdef _MSC_VER
+    #include <stdint.h>                 // this gets rid of the 
+    // ...\microsoft visual studio 8\vc\include\stdint.h(244) : warning C4005: 'INTMAX_C' : macro redefinition
+    // ...\boost_1_53_0\boost\cstdint.hpp(423) : see previous definition of 'INTMAX_C'    
+
+    #define DEBUG_LOCKORDER
+    #define DEBUG_LOCKCONTENTION
+    //#include "sync.h"
+    #include "util.h"    
+    #include "sync.h"
+#else
 #include "sync.h"
 #include "util.h"
+#endif
 
 #include <boost/foreach.hpp>
 

@@ -5,6 +5,10 @@
 #ifndef H_BITCOIN_SCRIPT
 #define H_BITCOIN_SCRIPT
 
+#ifdef _MSC_VER
+    #include "msvc_warnings.push.h"
+#endif
+
 #include <string>
 #include <vector>
 
@@ -13,6 +17,10 @@
 
 #include "keystore.h"
 #include "bignum.h"
+
+#ifdef _MSC_VER
+    #include "justincase.h"       // for releaseModeAssertionfailure()
+#endif
 
 class CCoins;
 class CTransaction;
@@ -389,7 +397,15 @@ public:
     {
         // I'm not sure if this should push the script or concatenate scripts.
         // If there's ever a use for pushing a script onto a script, delete this member fn
+#ifdef _MSC_VER
+    #ifdef _DEBUG
         assert(!"Warning: Pushing a CScript onto a CScript with << is probably not intended, use + to concatenate!");
+    #else
+        // what would be OK, if anything?
+    #endif
+#else
+        assert(!"Warning: Pushing a CScript onto a CScript with << is probably not intended, use + to concatenate!");
+#endif
         return *this;
     }
 
@@ -479,12 +495,40 @@ public:
     {
         if (opcode == OP_0)
             return 0;
+#ifdef _MSC_VER
+        bool
+            fTest = (
+                     (opcode >= OP_1) && 
+                     (opcode <= OP_16)
+                    );
+    #ifdef _DEBUG
+        assert(fTest);
+    #else
+        if( !fTest )
+            releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
         assert(opcode >= OP_1 && opcode <= OP_16);
+#endif
         return (int)opcode - (int)(OP_1 - 1);
     }
     static opcodetype EncodeOP_N(int n)
     {
+#ifdef _MSC_VER
+        bool
+            fTest = (
+                     (n >= 0) && 
+                     (n <= 16)
+                    );
+    #ifdef _DEBUG
+        assert(fTest);
+    #else
+        if( !fTest )
+            releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
         assert(n >= 0 && n <= 16);
+#endif
         if (n == 0)
             return OP_0;
         return (opcodetype)(OP_1+n-1);
@@ -639,12 +683,35 @@ public:
     void Serialize(Stream &s, int nType, int nVersion) const {
         std::vector<unsigned char> compr;
         if (Compress(compr)) {
-           s << CFlatData(compr.data(), compr.data() + compr.size());
+#ifdef _MSC_VER        
+            if( 0 == compr.size() )
+                {
+                compr.resize(1);
+               // s << CFlatData(&compr[0], &compr[0]); //maybe this was too compatible!!                
+                }
+            s << CFlatData(&compr[0], &compr[0] + compr.size());                        
+#else            
+            s << CFlatData(compr.data(), compr.data() + compr.size());
+#endif            
             return;
         }
         unsigned int nSize = script.size() + nSpecialScripts;
         s << VARINT(nSize);
+#ifdef _MSC_VER 
+        if( 0 == script.size() )
+            {
+            script.resize(1);
+            //s << CFlatData(&script[0], &script[0]);  //maybe this was too compatible!!
+            }
+        //else               
+    #ifdef _DEBUG
+        int
+            nSizeofScriptClassElement = sizeof( script[ 0 ] );  // just to see what it can be!?
+    #endif
+        s << CFlatData(&script[0], &script[0] + (sizeof(script[0]) * script.size()));                
+#else                    
         s << CFlatData(script.data(), script.data() + script.size());
+#endif                    
     }
 
     template<typename Stream>
@@ -653,13 +720,32 @@ public:
         s >> VARINT(nSize);
         if (nSize < nSpecialScripts) {
             std::vector<unsigned char> vch(GetSpecialSize(nSize), 0x00);
+#ifdef _MSC_VER
+            if (0 == vch.size() )
+                vch.resize( 1 );
+            s >> REF(CFlatData(&vch[0], &vch[0] + vch.size()));                        
+#else            
             s >> REF(CFlatData(vch.data(), vch.data() + vch.size()));
+#endif            
             Decompress(nSize, vch);
             return;
         }
         nSize -= nSpecialScripts;
         script.resize(nSize);
+#ifdef _MSC_VER
+        int
+            nScriptSize = int( script.size() );
+
+        if( 0 == nScriptSize )
+            script.resize(1);   // what else can one do?
+
+        int
+            nSizeOfElement = int( sizeof(script[0]) ); // just to see if it is ever >1 ?
+
+        s >> REF(CFlatData(&script[0], &script[0] + (nSizeOfElement * script.size())));                
+#else        
         s >> REF(CFlatData(script.data(), script.data() + script.size()));
+#endif        
     }
 };
 
@@ -682,4 +768,7 @@ bool VerifyScript(const CScript& scriptSig, const CScript& scriptPubKey, const C
 // combine them intelligently and return the result.
 CScript CombineSignatures(CScript scriptPubKey, const CTransaction& txTo, unsigned int nIn, const CScript& scriptSig1, const CScript& scriptSig2);
 
+#ifdef _MSC_VER
+    #include "msvc_warnings.pop.h"
+#endif
 #endif

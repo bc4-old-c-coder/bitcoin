@@ -3,10 +3,21 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#ifdef _MSC_VER
+    #include <stdint.h>                 // this gets rid of the 
+    // ...\program files\microsoft visual studio 8\vc\include\stdint.h(244) : warning C4005: 'INTMAX_C' : macro redefinition
+    // ...\libs\boost_1_53_0\boost\cstdint.hpp(423) : see previous definition of 'INTMAX_C'
+    #include "bitcoinrpc.h"
+    //#include "main.h"
+    #include "init.h"   // for pwalletMain
+    //#include "db.h"
+    #include "justincase.h"       // for releaseModeAssertionfailure()
+#else
 #include "main.h"
 #include "db.h"
 #include "init.h"
 #include "bitcoinrpc.h"
+#endif
 
 using namespace json_spirit;
 using namespace std;

@@ -161,6 +161,102 @@ Value getblock(const Array& params, bool fHelp)
     return blockToJSON(block, pblockindex);
 }
 
+#ifdef _MSC_VER
+Value getcurrentblockandtime(const Array& params, bool fHelp)
+{
+    if (
+        fHelp || 
+        (0 != params.size())
+       )
+        throw runtime_error(
+            "getblockcountt\n"
+            "Returns the number of blocks in the longest block chain and the time of the latest block.");
+
+    CBlockIndex
+        * pbi = FindBlockByHeight(nBestHeight);
+
+    const uint256
+        *pa_hash = pbi->phashBlock;
+
+    if (0 == mapBlockIndex.count(*pa_hash))
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Block not found");
+
+    pbi = mapBlockIndex[*pa_hash];
+
+    CBlock 
+        block;
+
+    block.ReadFromDisk(pbi);
+    //___________________________________________
+    struct tm 
+        aTimeStruct,
+        gmTimeStruct;
+    time_t 
+        tBlock, 
+        mytime;
+    char 
+        buff[30];
+
+    tBlock = time_t( block.GetBlockTime() );
+
+    bool
+        fIsGMT = true;      // the least of all evils
+
+    if( !_localtime64_s( &aTimeStruct, &tBlock ) )   // OK
+    {
+        // are we in GMT?
+        if( !_gmtime64_s( &gmTimeStruct, &tBlock ) )   // OK we can compare
+        {
+            if( tBlock != _mkgmtime( &aTimeStruct ) )
+                fIsGMT = false;
+          //else    // we are in GMT to begin with
+        }
+      //else    // _gmtime64_s() errored
+    }
+  //else //_localtime64_s() errored     
+ 
+    if( fIsGMT )// for GMT or having errored trying to convert from GMT
+    {
+        std::string
+            strS = strprintf(
+                             "%d %s"
+                             "\n"
+                             "",
+                             int(nBestHeight),
+                             DateTimeStrFormat(
+                                  " %Y-%m-%d %H:%M:%S",
+                                  block.GetBlockTime()
+                                              ).c_str()
+                            );
+        return strS;
+    }    
+    // let's cook up local time
+    asctime_s( buff, sizeof(buff), &aTimeStruct );
+    buff[ 24 ] = '\0';      // let's wipe out the \n
+    printf( //"Local Time: "
+            "%s"
+            "\n"
+            ""
+            , buff );
+    //___________________________________________
+
+    std::string
+        strS = strprintf(
+                         "%d %s (local %s)"
+                         "\n"
+                         "",
+                         int(nBestHeight),
+                         DateTimeStrFormat(
+                              " %Y-%m-%d %H:%M:%S",
+                              block.GetBlockTime()
+                                          ).c_str()
+                         , 
+                         buff
+                        );
+    return strS;
+}
+#endif
+
 Value gettxoutsetinfo(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() != 0)

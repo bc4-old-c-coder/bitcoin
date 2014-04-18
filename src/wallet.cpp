@@ -8,6 +8,9 @@
 #include "crypter.h"
 #include "ui_interface.h"
 #include "base58.h"
+#ifdef _MSC_VER
+    #include "justincase.h"       // for releaseModeAssertionfailure()
+#endif
 #include <boost/algorithm/string/replace.hpp>
 
 using namespace std;
@@ -267,7 +270,13 @@ bool CWallet::EncryptWallet(const SecureString& strWalletPassphrase)
         {
             if (fFileBacked)
                 pwalletdbEncryption->TxnAbort();
+#ifdef _MSC_VER
+            // a rather crude thing to do, don't you think?  Can't we shutdown gracefully?
+            // perhaps just
+            return false;   // looking at what encryptwallet() in rpcwallet.cpp does
+#else
             exit(1); //We now probably have half of our keys encrypted in memory, and half not...die and let the user reload their unencrypted wallet.
+#endif
         }
 
         // Encryption was introduced in version 0.4.0
@@ -276,7 +285,11 @@ bool CWallet::EncryptWallet(const SecureString& strWalletPassphrase)
         if (fFileBacked)
         {
             if (!pwalletdbEncryption->TxnCommit())
+#ifdef _MSC_VER
+                return false;   // looking at what encryptwallet() in rpcwallet.cpp does
+#else
                 exit(1); //We now have keys encrypted in memory, but no on disk...die to avoid confusion and let the user reload their unencrypted wallet.
+#endif
 
             delete pwalletdbEncryption;
             pwalletdbEncryption = NULL;
@@ -765,27 +778,153 @@ bool CWalletTx::WriteToDisk()
     return CWalletDB(pwallet->strWalletFile).WriteTx(GetHash(), *this);
 }
 
+#ifdef _MSC_VER
+//_____________________________________________________________________________
+static void
+    DoRescanProgress( int nCount, int nTotalToScan, int64 n64MsStartTime )
+{
+    int64
+        n64SecondsEstimatedTotalTime,
+        n64MsEstimatedTotalTime,
+        n64MsDeltaTime;
+
+    if(
+        (0 == (nCount % 10) )   // every 10th time
+      )
+    {
+        if( 0 == nCount )       // first time
+        {
+            (void)printf(
+                    "%6d "
+                    ""
+                    , nCount
+                        );
+        }
+        else                    // all the next times
+        {
+            n64SecondsEstimatedTotalTime = 0;
+            if( 
+                (0 == (nCount % 100) )   // every 100th time (every 10th next time)
+              )
+            {   // let's estimate the time remaining too!
+                n64MsDeltaTime = GetTimeMillis() - n64MsStartTime;
+                // we have done nCount / nTotalToScan th of them in n64MsDeltaTime
+                // so total time in ms ~ n64MsDeltaTime * nTotalToScan / nCount
+                n64MsEstimatedTotalTime = n64MsDeltaTime * nTotalToScan / nCount;
+                // time (seconds) remaining is
+                n64SecondsEstimatedTotalTime =
+                    ( n64MsEstimatedTotalTime + n64MsStartTime - GetTimeMillis() ) / 1000;
+            }
+            (void)printf(
+                    "%6d "
+                    "%2.2f%% "
+                    ""
+                    , nCount
+                    , floorf( float(nCount * 10000.0 / nTotalToScan) ) / 100
+                        );
+            if( 0 != n64SecondsEstimatedTotalTime )
+            {
+                const int64
+                    nSecondsPerMinute = 60,
+                    nMinutesPerHour = 60;
+                int64
+                    nSeconds = 0,
+                    nMinutes = 0,
+                    nHours = 0;
+
+                if( n64SecondsEstimatedTotalTime >= nSecondsPerMinute )
+                {                   // there are minutes to go
+                    nSeconds = n64SecondsEstimatedTotalTime % nSecondsPerMinute;
+                    nMinutes = n64SecondsEstimatedTotalTime / nSecondsPerMinute;
+                    if( nMinutes >= nMinutesPerHour ) // there are hours to go
+                    {
+                        nHours = nMinutes / nMinutesPerHour;
+                        nMinutes %= nMinutesPerHour;
+                        (void)printf(
+                                "~%d:%02d:%02d hrs:min:sec"
+                                ""
+                                ,
+                                (int)nHours,
+                                (int)nMinutes,
+                                (int)nSeconds
+                                    );
+                    }
+                    else    // there are only minutes
+                    {
+                        (void)printf(
+                                "~%2d:%02d min:sec    "
+                                "\r"
+                                ""
+                                ,
+                                (int)nMinutes,
+                                (int)nSeconds
+                                    );
+                    }
+                }
+                else    // there are only seconds
+                {
+                    nSeconds = n64SecondsEstimatedTotalTime;
+                    (void)printf(
+                            "~%2d sec       "
+                            ""
+                            ,
+                            (int)nSeconds
+                                );
+                }
+            }
+        }
+        (void)printf( "\r" );
+    }
+}
+//_____________________________________________________________________________
+#endif
 // Scan the block chain (starting in pindexStart) for transactions
 // from or to us. If fUpdate is true, found transactions that already
 // exist in the wallet will be updated.
-int CWallet::ScanForWalletTransactions(CBlockIndex* pindexStart, bool fUpdate)
+int CWallet::ScanForWalletTransactions(CBlockIndex* pindexStart, bool fUpdate
+#ifdef _MSC_VER
+                                        , int nTotalToScan
+#endif
+                                      )
 {
-    int ret = 0;
+    int 
+        ret = 0;
 
-    CBlockIndex* pindex = pindexStart;
+    CBlockIndex
+        * pindex = pindexStart;
     {
+#ifdef _MSC_VER
+        int
+            nCount = 0;
+
+        int64
+            n64MsStartTime = GetTimeMillis();
+#endif        
         LOCK(cs_wallet);
+
         while (pindex)
         {
-            CBlock block;
+            CBlock 
+                block;
+
             block.ReadFromDisk(pindex);
             BOOST_FOREACH(CTransaction& tx, block.vtx)
             {
                 if (AddToWalletIfInvolvingMe(tx.GetHash(), tx, &block, fUpdate))
-                    ret++;
+                    ++ret;
             }
             pindex = pindex->pnext;
+#ifdef _MSC_VER
+            ++nCount;
+            if (fPrintToConsole)
+                DoRescanProgress( nCount, nTotalToScan, n64MsStartTime );
         }
+        if (fPrintToConsole)     // this could be a progress bar, % meter etc.
+            (void)printf( "\n" );// but we would need another parameter of the total
+                                 // # of blocks to scan
+#else    
+        }
+#endif        
     }
     return ret;
 }
@@ -1234,7 +1373,17 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, int64> >& vecSend,
                     // Reserve a new key pair from key pool
                     CPubKey vchPubKey;
                     bool b = reservekey.GetReservedKey(vchPubKey);
+#ifdef _MSC_VER
+    #ifdef _DEBUG
+                    assert(b);
+    #else
+                    if( !b )
+                        releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
                     assert(b); // should never fail, as we just unlocked
+                                // Wow! An assertion done correctly.  I'm amazed!!
+#endif
 
                     // Fill a vout to ourself
                     // TODO: pass in scriptChange instead of reservekey so
@@ -1580,7 +1729,18 @@ void CWallet::ReserveKeyFromKeyPool(int64& nIndex, CKeyPool& keypool)
             throw runtime_error("ReserveKeyFromKeyPool() : read failed");
         if (!HaveKey(keypool.vchPubKey.GetID()))
             throw runtime_error("ReserveKeyFromKeyPool() : unknown key in key pool");
+#ifdef _MSC_VER
+        bool
+            fTest = (keypool.vchPubKey.IsValid());
+    #ifdef _DEBUG
+        assert(fTest);
+    #else
+        if( !fTest )
+            releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
         assert(keypool.vchPubKey.IsValid());
+#endif
         printf("keypool reserve %"PRI64d"\n", nIndex);
     }
 }
@@ -1804,7 +1964,18 @@ bool CReserveKey::GetReservedKey(CPubKey& pubkey)
                 return false;
         }
     }
+#ifdef _MSC_VER
+    bool
+        fTest = (vchPubKey.IsValid());
+    #ifdef _DEBUG
+    assert(fTest);
+    #else
+    if( !fTest )
+        releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
     assert(vchPubKey.IsValid());
+#endif
     pubkey = vchPubKey;
     return true;
 }
@@ -1837,7 +2008,18 @@ void CWallet::GetAllReserveKeys(set<CKeyID>& setAddress)
         CKeyPool keypool;
         if (!walletdb.ReadPool(id, keypool))
             throw runtime_error("GetAllReserveKeyHashes() : read failed");
+#ifdef _MSC_VER
+        bool
+            fTest = (keypool.vchPubKey.IsValid());
+    #ifdef _DEBUG
+        assert(fTest);
+    #else
+        if( !fTest )
+            releaseModeAssertionfailure( __FILE__, __LINE__, __PRETTY_FUNCTION__ );
+    #endif
+#else
         assert(keypool.vchPubKey.IsValid());
+#endif
         CKeyID keyID = keypool.vchPubKey.GetID();
         if (!HaveKey(keyID))
             throw runtime_error("GetAllReserveKeyHashes() : unknown key in key pool");
