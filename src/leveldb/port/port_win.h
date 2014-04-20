@@ -43,6 +43,11 @@
 #include <snappy.h>
 #endif
 
+#ifdef _MSC_VER
+// 2013/11/27 rdw
+#define nullptr     NULL
+#endif
+
 namespace leveldb {
 namespace port {
 
@@ -91,10 +96,14 @@ class CondVar {
   
   void * sem1_;
   void * sem2_;
-  
-  
+
+
 };
 
+#ifdef _MSC_VER
+    typedef volatile long OnceType;
+    #define LEVELDB_ONCE_INIT (0)
+#else
 class OnceType {
 public:
 //    OnceType() : init_(false) {}
@@ -115,6 +124,8 @@ private:
 };
 
 #define LEVELDB_ONCE_INIT false
+#endif
+
 extern void InitOnce(port::OnceType*, void (*initializer)());
 
 // Storage for a lock-free pointer
@@ -122,7 +133,7 @@ class AtomicPointer {
  private:
   void * rep_;
  public:
-  AtomicPointer() : rep_(NULL) { }
+  AtomicPointer() : rep_(nullptr) { }
   explicit AtomicPointer(void* v); 
   void* Acquire_Load() const;
 

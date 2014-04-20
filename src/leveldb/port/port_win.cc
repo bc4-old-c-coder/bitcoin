@@ -37,7 +37,7 @@ namespace leveldb {
 namespace port {
 
 Mutex::Mutex() :
-    cs_(NULL) {
+    cs_(nullptr) {
   assert(!cs_);
   cs_ = static_cast<void *>(new CRITICAL_SECTION());
   ::InitializeCriticalSection(static_cast<CRITICAL_SECTION *>(cs_));
@@ -48,7 +48,7 @@ Mutex::~Mutex() {
   assert(cs_);
   ::DeleteCriticalSection(static_cast<CRITICAL_SECTION *>(cs_));
   delete static_cast<CRITICAL_SECTION *>(cs_);
-  cs_ = NULL;
+  cs_ = nullptr;
   assert(!cs_);
 }
 
@@ -109,11 +109,23 @@ void CondVar::Signal() {
 
 void CondVar::SignalAll() {
   wait_mtx_.Lock();
+#ifndef _MSC_VER
   ::ReleaseSemaphore(sem1_, waiting_, NULL);
   while(waiting_ > 0) {
     --waiting_;
     ::WaitForSingleObject(sem2_, INFINITE);
   }
+#else
+    for(long i = 0; i < waiting_; ++i) 
+    {
+        ::ReleaseSemaphore(sem1_, 1, NULL);
+        while(waiting_ > 0) 
+        {
+            --waiting_;
+            ::WaitForSingleObject(sem2_, INFINITE);
+        }
+    }
+#endif
   wait_mtx_.Unlock();
 }
 
@@ -121,12 +133,51 @@ AtomicPointer::AtomicPointer(void* v) {
   Release_Store(v);
 }
 
+#ifdef _MSC_VER
+BOOL CALLBACK InitHandleFunction (PINIT_ONCE InitOnce, PVOID func, PVOID *lpContext) 
+{
+    ((void (*)())func)();
+    return true;
+}
+
+enum InitializationState
+{
+    Uninitialized = 0,
+    Running = 1,
+    Initialized = 2
+};
+
+void InitOnce(OnceType* once, void (*initializer)()) {
+    assert(Uninitialized == LEVELDB_ONCE_INIT);    //, "Invalid uninitialized state value");
+    InitializationState 
+        state = static_cast<InitializationState>(
+                                        InterlockedCompareExchange(once, Running, Uninitialized)
+                                                );
+
+    if (state == Uninitialized) 
+    {
+        initializer();
+        *once = Initialized;
+    }
+
+    if (state == Running) 
+    {
+        while(*once != Initialized) 
+        {
+            Sleep(0); // yield
+        }
+    }
+
+    assert(*once == Initialized);
+}
+#else
 void InitOnce(OnceType* once, void (*initializer)()) {
   once->InitOnce(initializer);
 }
+#endif
 
 void* AtomicPointer::Acquire_Load() const {
-  void * p = NULL;
+  void * p = nullptr;
   InterlockedExchangePointer(&p, rep_);
   return p;
 }
