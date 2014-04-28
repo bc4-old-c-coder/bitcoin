@@ -1,3 +1,9 @@
+#ifdef _MSC_VER
+    #include <stdint.h>
+
+    #define BOOST_TEST_MAIN
+#endif
+
 #define BOOST_TEST_MODULE Bitcoin Test Suite
 #include <boost/test/unit_test.hpp>
 #include <boost/filesystem.hpp>

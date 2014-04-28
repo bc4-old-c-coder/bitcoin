@@ -1,5 +1,8 @@
 //
 // Unit tests for canonical signatures
+#ifdef _MSC_VER
+    #include <stdint.h>
+#endif
 
 #include "json/json_spirit_writer_template.h"
 #include <boost/test/unit_test.hpp>

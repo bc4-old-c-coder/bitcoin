@@ -1,3 +1,7 @@
+#ifdef _MSC_VER
+    #include <stdint.h>
+#endif
+
 #include <boost/test/unit_test.hpp>
 #include "json/json_spirit_reader_template.h"
 #include "json/json_spirit_writer_template.h"
@@ -14,7 +18,7 @@ BOOST_AUTO_TEST_SUITE(base58_tests)
 // Goal: test low-level base58 encoding functionality
 BOOST_AUTO_TEST_CASE(base58_EncodeBase58)
 {
-    Array tests = read_json("base58_encode_decode.json");
+    Array tests = read_json("base58_encode_decode.json");    // reads but fails to store?
 
     BOOST_FOREACH(Value& tv, tests)
     {
@@ -27,9 +31,23 @@ BOOST_AUTO_TEST_CASE(base58_EncodeBase58)
         }
         std::vector<unsigned char> sourcedata = ParseHex(test[0].get_str());
         std::string base58string = test[1].get_str();
+#ifdef _MSC_VER
+        if( sourcedata.empty() )
+        {
+            sourcedata.resize( 1 );
+            BOOST_CHECK_MESSAGE(                            // errors here because the read above failed silently!?
+                        EncodeBase58(&sourcedata[0], &sourcedata[0]) == base58string,
+                        strTest);
+        }
+        else
+            BOOST_CHECK_MESSAGE(                            // errors here because the read above failed silently!?
+                        EncodeBase58(&sourcedata[0], &sourcedata[0] + sourcedata.size()) == base58string,
+                        strTest);
+#else
         BOOST_CHECK_MESSAGE(
                     EncodeBase58(&sourcedata[0], &sourcedata[sourcedata.size()]) == base58string,
                     strTest);
+#endif
     }
 }
 

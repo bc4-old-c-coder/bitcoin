@@ -1,3 +1,9 @@
+#ifdef _MSC_VER
+    #include <stdint.h>
+
+    #include <vector>
+#endif
+
 #include <boost/assert.hpp>
 #include <boost/assign/list_of.hpp>
 #include <boost/assign/list_inserter.hpp>
@@ -102,7 +108,7 @@ BOOST_AUTO_TEST_CASE(sign)
     // Check to make sure signature verification fails if we use the wrong ScriptSig:
     for (int i = 0; i < 8; i++)
         for (int j = 0; j < 8; j++)
-        {
+        {                                   // when i=6, j=5
             CScript sigSave = txTo[i].vin[0].scriptSig;
             txTo[i].vin[0].scriptSig = txTo[j].vin[0].scriptSig;
             bool sigOK = VerifySignature(CCoins(txFrom, 0), txTo[i], 0, SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_STRICTENC, 0);
@@ -202,6 +208,67 @@ BOOST_AUTO_TEST_CASE(is)
     BOOST_CHECK(p2sh.IsPayToScriptHash());
 
     // Not considered pay-to-script-hash if using one of the OP_PUSHDATA opcodes:
+#ifdef _MSC_VER
+    static const unsigned char 
+        direct[] =    { OP_HASH160, 20, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, OP_EQUAL };
+
+    static vector<unsigned char> 
+        vScript;
+
+    for( int index = 0; index < sizeof( direct ); ++index )
+        vScript.push_back( direct[ index ] );
+
+    BOOST_CHECK(
+                CScript(
+                        vScript.begin(), 
+                        vScript.end()
+                       ).IsPayToScriptHash()
+               );
+
+    static const unsigned char 
+        pushdata1[] = { OP_HASH160, OP_PUSHDATA1, 20, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, OP_EQUAL };
+
+    vScript.clear();
+
+    for( int index = 0; index < sizeof( pushdata1 ); ++index )
+        vScript.push_back( pushdata1[ index ] );
+
+    BOOST_CHECK(
+                !CScript(
+                         vScript.begin(), 
+                         vScript.end()
+                        ).IsPayToScriptHash()
+               );
+
+    static const unsigned char 
+        pushdata2[] = { OP_HASH160, OP_PUSHDATA2, 20,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, OP_EQUAL };
+
+    vScript.clear();
+
+    for( int index = 0; index < sizeof( pushdata2 ); ++index )
+        vScript.push_back( pushdata2[ index ] );
+
+    BOOST_CHECK(
+                !CScript(
+                         vScript.begin(), 
+                         vScript.end()
+                        ).IsPayToScriptHash()
+               );
+
+    static const unsigned char 
+        pushdata4[] = { OP_HASH160, OP_PUSHDATA4, 20,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, OP_EQUAL };
+
+    vScript.clear();
+    for( int index = 0; index < sizeof( pushdata4 ); ++index )
+        vScript.push_back( pushdata4[ index ] );
+
+    BOOST_CHECK(
+                !CScript(
+                         vScript.begin(), 
+                         vScript.end()
+                        ).IsPayToScriptHash()
+               );
+#else
     static const unsigned char direct[] =    { OP_HASH160, 20, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, OP_EQUAL };
     BOOST_CHECK(CScript(direct, direct+sizeof(direct)).IsPayToScriptHash());
     static const unsigned char pushdata1[] = { OP_HASH160, OP_PUSHDATA1, 20, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, OP_EQUAL };
@@ -210,6 +277,7 @@ BOOST_AUTO_TEST_CASE(is)
     BOOST_CHECK(!CScript(pushdata2, pushdata2+sizeof(pushdata2)).IsPayToScriptHash());
     static const unsigned char pushdata4[] = { OP_HASH160, OP_PUSHDATA4, 20,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, OP_EQUAL };
     BOOST_CHECK(!CScript(pushdata4, pushdata4+sizeof(pushdata4)).IsPayToScriptHash());
+#endif
 
     CScript not_p2sh;
     BOOST_CHECK(!not_p2sh.IsPayToScriptHash());
@@ -273,7 +341,10 @@ BOOST_AUTO_TEST_CASE(AreInputsStandard)
     txFrom.vout[2].nValue = 3000;
 
     // Last three non-standard:
-    CScript empty;
+    CScript empty;          // can't seem to legitimately do this??
+#ifdef _MSC_VER
+    empty << OP_0;          // seems to work!?
+#endif
     keystore.AddCScript(empty);
     txFrom.vout[3].scriptPubKey = empty;
     txFrom.vout[3].nValue = 4000;

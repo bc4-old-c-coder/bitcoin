@@ -37,7 +37,11 @@ bool CBasicKeyStore::AddCScript(const CScript& redeemScript)
 {
     {
         LOCK(cs_KeyStore);
+#ifdef _MSC_VER
+        mapScripts[redeemScript.GetID()] = redeemScript;  // will crash if redeemScript is 0 length []
+#else
         mapScripts[redeemScript.GetID()] = redeemScript;
+#endif
     }
     return true;
 }

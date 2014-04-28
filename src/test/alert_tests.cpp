@@ -73,7 +73,16 @@ struct ReadAlerts
     {
         std::string filename("alertTests");
         namespace fs = boost::filesystem;
+
+#ifdef _MSC_VER
+    #ifdef NDEBUG
+        fs::path testFile = fs::current_path() / ".." / "bitcoin-0.8.6" / "src" / "test" / "data" / filename;
+    #else
+        fs::path testFile = fs::current_path()        / "bitcoin-0.8.6" / "src" / "test" / "data" / filename;
+    #endif
+#else
         fs::path testFile = fs::current_path() / "test" / "data" / filename;
+#endif
 #ifdef TEST_DATA_DIR
         if (!fs::exists(testFile))
         {
@@ -125,6 +134,10 @@ BOOST_AUTO_TEST_CASE(AlertApplies)
     {
         BOOST_CHECK(alert.CheckSignature());
     }
+#ifdef _MSC_VER
+    if (3 > alerts.size() )
+        alerts.resize( 3 );
+#endif
     // Matches:
     BOOST_CHECK(alerts[0].AppliesTo(1, ""));
     BOOST_CHECK(alerts[0].AppliesTo(70001, ""));

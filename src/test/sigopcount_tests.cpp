@@ -1,3 +1,7 @@
+#ifdef _MSC_VER
+    #include <stdint.h>
+#endif
+
 #include <vector>
 #include <boost/test/unit_test.hpp>
 #include <boost/foreach.hpp>

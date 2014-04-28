@@ -18,7 +18,6 @@
 #endif
 
 #ifdef _MSC_VER
-    //#include "util.h"
     #include "sync.h"
     //#include "version.h"
     #include "ui_interface.h"

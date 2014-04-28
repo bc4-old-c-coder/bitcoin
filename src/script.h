@@ -536,16 +536,31 @@ public:
 
     int FindAndDelete(const CScript& b)
     {
-        int nFound = 0;
+        int 
+            nFound = 0;
+
         if (b.empty())
             return nFound;
-        iterator pc = begin();
-        opcodetype opcode;
+
+        iterator 
+            pc = begin(),
+            endi = end();
+
+        opcodetype 
+            opcode;
+
         do
         {
-            while (end() - pc >= (long)b.size() && memcmp(&pc[0], &b[0], b.size()) == 0)
+            while (
+                    ((endi - pc) >= (long)b.size()) && 
+                    (0 == memcmp(&pc[0], &b[0], b.size()))
+                  )
             {
                 erase(pc, pc + b.size());
+#ifdef _MSC_VER     
+                pc = begin();  // exposed during unit tests
+                endi = end();
+#endif
                 ++nFound;
             }
         }
@@ -687,9 +702,10 @@ public:
             if( 0 == compr.size() )
                 {
                 compr.resize(1);
-               // s << CFlatData(&compr[0], &compr[0]); //maybe this was too compatible!!                
+                s << CFlatData(&compr[0], &compr[0] + 0);                        
                 }
-            s << CFlatData(&compr[0], &compr[0] + compr.size());                        
+            else
+                s << CFlatData(&compr[0], &compr[0] + compr.size());                        
 #else            
             s << CFlatData(compr.data(), compr.data() + compr.size());
 #endif            
@@ -701,14 +717,14 @@ public:
         if( 0 == script.size() )
             {
             script.resize(1);
-            //s << CFlatData(&script[0], &script[0]);  //maybe this was too compatible!!
+            s << CFlatData(&script[0], &script[0] + (sizeof(script[0]) * 0));                
             }
-        //else               
+        else               
+            s << CFlatData(&script[0], &script[0] + (sizeof(script[0]) * script.size()));                
     #ifdef _DEBUG
         int
             nSizeofScriptClassElement = sizeof( script[ 0 ] );  // just to see what it can be!?
     #endif
-        s << CFlatData(&script[0], &script[0] + (sizeof(script[0]) * script.size()));                
 #else                    
         s << CFlatData(script.data(), script.data() + script.size());
 #endif                    
@@ -722,8 +738,12 @@ public:
             std::vector<unsigned char> vch(GetSpecialSize(nSize), 0x00);
 #ifdef _MSC_VER
             if (0 == vch.size() )
+            {
                 vch.resize( 1 );
-            s >> REF(CFlatData(&vch[0], &vch[0] + vch.size()));                        
+                s >> REF(CFlatData(&vch[0], &vch[0] + 0));                        
+            }
+            else
+                s >> REF(CFlatData(&vch[0], &vch[0] + vch.size()));                        
 #else            
             s >> REF(CFlatData(vch.data(), vch.data() + vch.size()));
 #endif            
@@ -734,15 +754,17 @@ public:
         script.resize(nSize);
 #ifdef _MSC_VER
         int
+            nSizeOfElement = int( sizeof(script[0]) ); // just to see if it is ever >1 ?
+        int
             nScriptSize = int( script.size() );
 
         if( 0 == nScriptSize )
+        {
             script.resize(1);   // what else can one do?
-
-        int
-            nSizeOfElement = int( sizeof(script[0]) ); // just to see if it is ever >1 ?
-
-        s >> REF(CFlatData(&script[0], &script[0] + (nSizeOfElement * script.size())));                
+            s >> REF(CFlatData(&script[0], &script[0] + (nSizeOfElement * 0)));                
+        }
+        else
+            s >> REF(CFlatData(&script[0], &script[0] + (nSizeOfElement * script.size())));                
 #else        
         s >> REF(CFlatData(script.data(), script.data() + script.size()));
 #endif        

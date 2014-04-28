@@ -1,3 +1,7 @@
+#ifdef _MSC_VER
+    #include <stdint.h>
+#endif
+
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -89,7 +93,19 @@ Array
 read_json(const std::string& filename)
 {
     namespace fs = boost::filesystem;
+#ifdef _MSC_VER
+    // in MS Visual Studio, the current_path() is a function of where
+    // the project or solution was created, in relation to the sources
+    // so what is "between" current_path() and / "test" / "data" / filename
+    // will vary.  You must enter it yourself. 
+    #ifdef NDEBUG
+    fs::path testFile = fs::current_path() / ".." / "bitcoin-0.8.6" / "src" / "test" / "data" / filename;
+    #else
+    fs::path testFile = fs::current_path()        / "bitcoin-0.8.6" / "src" / "test" / "data" / filename;
+    #endif
+#else
     fs::path testFile = fs::current_path() / "test" / "data" / filename;
+#endif
 
 #ifdef TEST_DATA_DIR
     if (!fs::exists(testFile))
@@ -99,8 +115,8 @@ read_json(const std::string& filename)
 #endif
 
     ifstream ifs(testFile.string().c_str(), ifstream::in);
-    Value v;
-    if (!read_stream(ifs, v))
+    Value v;                           // a ulong
+    if (!read_stream(ifs, v))          // doesn't fail but doens't store???
     {
         if (ifs.fail())
             BOOST_ERROR("Cound not find/open " << filename);
@@ -130,19 +146,32 @@ BOOST_AUTO_TEST_CASE(script_valid)
 
     BOOST_FOREACH(Value& tv, tests)
     {
-        Array test = tv.get_array();
-        string strTest = write_string(tv, false);
+        Array 
+            test = tv.get_array();
+
+        string 
+            strTest = write_string(tv, false);
+
         if (test.size() < 2) // Allow size > 2; extra stuff ignored (useful for comments)
         {
             BOOST_ERROR("Bad test: " << strTest);
             continue;
         }
-        string scriptSigString = test[0].get_str();
-        CScript scriptSig = ParseScript(scriptSigString);
-        string scriptPubKeyString = test[1].get_str();
-        CScript scriptPubKey = ParseScript(scriptPubKeyString);
+        string 
+            scriptSigString = test[0].get_str();
 
-        CTransaction tx;
+        CScript 
+            scriptSig = ParseScript(scriptSigString);
+
+        string 
+            scriptPubKeyString = test[1].get_str();
+
+        CScript 
+            scriptPubKey = ParseScript(scriptPubKeyString);
+
+        CTransaction 
+            tx;
+
         BOOST_CHECK_MESSAGE(VerifyScript(scriptSig, scriptPubKey, tx, 0, flags, SIGHASH_NONE), strTest);
     }
 }
@@ -181,18 +210,97 @@ BOOST_AUTO_TEST_CASE(script_PushData)
     static const unsigned char pushdata4[] = { OP_PUSHDATA4, 1, 0, 0, 0, 0x5a };
 
     vector<vector<unsigned char> > directStack;
+#ifdef _MSC_VER
+    vector<unsigned char> 
+        vScript;
+
+    for( int index = 0; index < sizeof( direct ); ++index )
+        vScript.push_back( direct[ index ] );
+
+    BOOST_CHECK(
+                EvalScript(
+                            directStack, 
+                            CScript(
+                                    vScript.begin(), 
+                                    vScript.end()
+                                   ), 
+                            CTransaction(), 
+                            0, 
+                            true, 
+                            0
+                          )
+               );
+#else
     BOOST_CHECK(EvalScript(directStack, CScript(&direct[0], &direct[sizeof(direct)]), CTransaction(), 0, true, 0));
+#endif
 
     vector<vector<unsigned char> > pushdata1Stack;
+#ifdef _MSC_VER
+    vScript.clear();
+    for( int index = 0; index < sizeof( pushdata1 ); ++index )
+        vScript.push_back( pushdata1[ index ] );
+    BOOST_CHECK(
+                EvalScript(
+                           pushdata1Stack, 
+                           CScript(
+                                    vScript.begin(), 
+                                    vScript.end()
+                                  ), 
+                           CTransaction(), 
+                           0, 
+                           true, 
+                           0
+                          )
+               );
+#else
     BOOST_CHECK(EvalScript(pushdata1Stack, CScript(&pushdata1[0], &pushdata1[sizeof(pushdata1)]), CTransaction(), 0, true, 0));
+#endif
     BOOST_CHECK(pushdata1Stack == directStack);
 
     vector<vector<unsigned char> > pushdata2Stack;
+#ifdef _MSC_VER
+    vScript.clear();
+    for( int index = 0; index < sizeof( pushdata2 ); ++index )
+        vScript.push_back( pushdata2[ index ] );
+    BOOST_CHECK(
+                EvalScript(
+                           pushdata2Stack, 
+                           CScript(
+                                    vScript.begin(), 
+                                    vScript.end()
+                                  ),
+                           CTransaction(), 
+                           0, 
+                           true, 
+                           0
+                          )
+               );
+#else
     BOOST_CHECK(EvalScript(pushdata2Stack, CScript(&pushdata2[0], &pushdata2[sizeof(pushdata2)]), CTransaction(), 0, true, 0));
+#endif
     BOOST_CHECK(pushdata2Stack == directStack);
 
     vector<vector<unsigned char> > pushdata4Stack;
+#ifdef _MSC_VER
+    vScript.clear();
+    for( int index = 0; index < sizeof( pushdata4 ); ++index )
+        vScript.push_back( pushdata4[ index ] );
+    BOOST_CHECK(
+                EvalScript(
+                            pushdata4Stack, 
+                            CScript(
+                                    vScript.begin(), 
+                                    vScript.end()
+                                   ), 
+                            CTransaction(), 
+                            0, 
+                            true, 
+                            0
+                          )
+               );
+#else
     BOOST_CHECK(EvalScript(pushdata4Stack, CScript(&pushdata4[0], &pushdata4[sizeof(pushdata4)]), CTransaction(), 0, true, 0));
+#endif
     BOOST_CHECK(pushdata4Stack == directStack);
 }
 

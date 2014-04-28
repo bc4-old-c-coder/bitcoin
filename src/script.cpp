@@ -841,6 +841,7 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
                     if (stack.size() < 1)
                         return false;
                     valtype& vch = stacktop(-1);
+                    valtype vchHash((opcode == OP_RIPEMD160 || opcode == OP_SHA1 || opcode == OP_HASH160) ? 20 : 32);
 #ifdef _MSC_VER
                     bool
                         fTest = false;
@@ -848,30 +849,52 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
                     if (0 == vch.size())
                     {
                         fTest = true;
-                        vch.resize( 1 );
-                    }
-#endif
-                    valtype vchHash((opcode == OP_RIPEMD160 || opcode == OP_SHA1 || opcode == OP_HASH160) ? 20 : 32);
-#ifdef _MSC_VER
-                    if (opcode == OP_RIPEMD160)
-                        RIPEMD160(&vch[0], vch.size(), &vchHash[0]);
-                    else if (opcode == OP_SHA1)
-                        SHA1(&vch[0], vch.size(), &vchHash[0]);
-                    else if (opcode == OP_SHA256)
-                        SHA256(&vch[0], vch.size(), &vchHash[0]);
-                    else if (opcode == OP_HASH160)
-                    {
-                        uint160 
-                            hash160 = Hash160(vch);
+                        vch.resize( 1 );            // again, unit tests forced this hack
+                        if (opcode == OP_RIPEMD160)
+                            RIPEMD160(&vch[0], 0, &vchHash[0]);
+                        else if (opcode == OP_SHA1)
+                            SHA1(&vch[0], 0, &vchHash[0]);
+                        else if (opcode == OP_SHA256)
+                            SHA256(&vch[0], 0, &vchHash[0]);
+                        else if (opcode == OP_HASH160)
+                        {
+                            vch.resize( 0 );
+                            uint160 
+                                hash160 = Hash160(vch);
 
-                        memcpy(&vchHash[0], &hash160, sizeof(hash160));
-                    }
-                    else if (opcode == OP_HASH256)
-                    {
-                        uint256 
-                            hash = Hash(vch.begin(), vch.end());
+                            memcpy(&vchHash[0], &hash160, sizeof(hash160));
+                        }
+                        else if (opcode == OP_HASH256)
+                        {
+                            vch.resize( 0 );
+                            uint256 
+                                hash = Hash(vch.begin(), vch.end());
 
-                        memcpy(&vchHash[0], &hash, sizeof(hash));                    
+                            memcpy(&vchHash[0], &hash, sizeof(hash));                    
+                        }
+                    }
+                    else
+                    {
+                        if (opcode == OP_RIPEMD160)
+                            RIPEMD160(&vch[0], vch.size(), &vchHash[0]);
+                        else if (opcode == OP_SHA1)
+                            SHA1(&vch[0], vch.size(), &vchHash[0]);
+                        else if (opcode == OP_SHA256)
+                            SHA256(&vch[0], vch.size(), &vchHash[0]);
+                        else if (opcode == OP_HASH160)
+                        {
+                            uint160 
+                                hash160 = Hash160(vch);
+
+                            memcpy(&vchHash[0], &hash160, sizeof(hash160));
+                        }
+                        else if (opcode == OP_HASH256)
+                        {
+                            uint256 
+                                hash = Hash(vch.begin(), vch.end());
+
+                            memcpy(&vchHash[0], &hash, sizeof(hash));                    
+                        }
                     }                        
 #else
 

@@ -1,6 +1,10 @@
 //
 // Unit tests for denial-of-service detection/prevention code
 //
+#ifdef _MSC_VER
+    #include <stdint.h>
+#endif
+
 #include <algorithm>
 
 #include <boost/assign/list_of.hpp> // for 'map_list_of()'

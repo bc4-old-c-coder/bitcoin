@@ -1,6 +1,10 @@
 //
 // Unit tests for block.CheckBlock()
 //
+#ifdef _MSC_VER
+    #include <stdint.h>
+#endif
+
 #include <algorithm>
 
 #include <boost/assign/list_of.hpp> // for 'map_list_of()'
